@@ -152,9 +152,47 @@ export function GanttChart({
   const todayLeft = todayCol * DAY_W
   const todayVisible = todayCol >= 0 && todayCol < totalDays
 
+  // ── 타임라인 좌우 드래그(패닝) ──
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const panRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
+  const suppressClickRef = useRef(false)
+  const [panning, setPanning] = useState(false)
+
+  function onGanttPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return
+    const el = e.target as HTMLElement
+    // 막대/라벨/팀헤더 위에서는 패닝하지 않음 (각자 동작 보유)
+    if (el.closest('.task-bar') || el.closest('.gantt-label') || el.closest('.team-header')) return
+    const c = scrollRef.current
+    if (!c) return
+    c.setPointerCapture(e.pointerId)
+    panRef.current = { startX: e.clientX, startScroll: c.scrollLeft, moved: false }
+    setPanning(true)
+  }
+  function onGanttPointerMove(e: React.PointerEvent) {
+    const pan = panRef.current
+    const c = scrollRef.current
+    if (!pan || !c) return
+    const dx = e.clientX - pan.startX
+    if (Math.abs(dx) > 4) pan.moved = true
+    c.scrollLeft = pan.startScroll - dx
+  }
+  function onGanttPointerUp(e: React.PointerEvent) {
+    const pan = panRef.current
+    if (!pan) return
+    if (pan.moved) suppressClickRef.current = true // 패닝 직후 클릭(생성) 억제
+    scrollRef.current?.releasePointerCapture(e.pointerId)
+    panRef.current = null
+    setPanning(false)
+  }
+
   // 빈 타임라인 클릭 → 해당 날짜/팀으로 새 태스크
   function handleTimelineClick(e: React.MouseEvent, team: string) {
     if (dragRef.current) return
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
     const rect = e.currentTarget.getBoundingClientRect()
     const dayIndex = Math.floor((e.clientX - rect.left) / DAY_W)
     if (dayIndex < 0) return
@@ -180,7 +218,13 @@ export function GanttChart({
   )
 
   return (
-    <div className={'gantt' + (dragging ? ' dragging' : '')}>
+    <div
+      ref={scrollRef}
+      className={'gantt' + (dragging ? ' dragging' : '') + (panning ? ' panning' : '')}
+      onPointerDown={onGanttPointerDown}
+      onPointerMove={onGanttPointerMove}
+      onPointerUp={onGanttPointerUp}
+    >
       {/* 헤더: 날짜 눈금 */}
       <div className="gantt-row gantt-head">
         <div className="gantt-label">팀 / 태스크</div>

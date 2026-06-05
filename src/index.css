@@ -438,6 +438,10 @@ button {
   border-radius: 14px;
   overflow: auto;
 }
+.gantt.panning {
+  cursor: grabbing;
+  user-select: none;
+}
 .gantt-row {
   display: flex;
   align-items: stretch;
