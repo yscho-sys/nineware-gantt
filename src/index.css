@@ -779,6 +779,28 @@ button {
   opacity: 1;
 }
 
+/* 행 인라인 세부 테스크 입력창 */
+.row-sub-input {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 240px;
+  max-width: 60%;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.row-sub-input:focus {
+  outline: none;
+}
+
 /* 맨 아래 새 테스크 추가 존 (마우스 오버 시 강조) */
 .gantt-add-zone {
   position: sticky;

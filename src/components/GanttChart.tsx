@@ -40,7 +40,7 @@ interface Props {
   onReschedule: (task: Task, startISO: string, dueISO: string) => void
   onTaskContextMenu: (task: Task, x: number, y: number) => void
   onCreateNew: () => void
-  onAddSub: (task: Task) => void
+  onAddStep: (task: Task, title: string) => void
 }
 
 // 드래그 중인 테스크의 미리보기 시작/목표일 계산
@@ -74,7 +74,7 @@ export function GanttChart({
   onReschedule,
   onTaskContextMenu,
   onCreateNew,
-  onAddSub,
+  onAddStep,
 }: Props) {
   const totalDays = daysBetween(rangeStart, rangeEnd) + 1
   const timelineWidth = totalDays * DAY_W
@@ -161,6 +161,10 @@ export function GanttChart({
   const scrollRef = useRef<HTMLDivElement>(null)
   const panRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
   const [panning, setPanning] = useState(false)
+
+  // 행에서 세부 테스크 인라인 추가
+  const [addingFor, setAddingFor] = useState<string | null>(null)
+  const [addText, setAddText] = useState('')
 
   function onGanttPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return
@@ -287,7 +291,10 @@ export function GanttChart({
                     <div
                       className="gantt-timeline"
                       style={{ width: timelineWidth }}
-                      onDoubleClick={() => onAddSub(t)}
+                      onDoubleClick={() => {
+                        setAddText('')
+                        setAddingFor(t.id)
+                      }}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         onTaskContextMenu(t, e.clientX, e.clientY)
@@ -295,16 +302,37 @@ export function GanttChart({
                       title="빈 곳 더블클릭 또는 + → 세부 테스크 추가"
                     >
                       {shades}
-                      <button
-                        className="row-sub-add"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onAddSub(t)
-                        }}
-                        title="세부 테스크 추가"
-                      >
-                        <Plus size={13} /> 세부 테스크
-                      </button>
+                      {addingFor === t.id ? (
+                        <input
+                          className="row-sub-input"
+                          autoFocus
+                          value={addText}
+                          placeholder="세부 테스크 이름 입력 후 Enter"
+                          onChange={(e) => setAddText(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && addText.trim()) {
+                              onAddStep(t, addText.trim())
+                              setAddText('')
+                            } else if (e.key === 'Escape') {
+                              setAddingFor(null)
+                            }
+                          }}
+                          onBlur={() => setAddingFor(null)}
+                        />
+                      ) : (
+                        <button
+                          className="row-sub-add"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setAddText('')
+                            setAddingFor(t.id)
+                          }}
+                          title="세부 테스크 추가"
+                        >
+                          <Plus size={13} /> 세부 테스크
+                        </button>
+                      )}
                       <div
                         className={
                           'task-bar' +

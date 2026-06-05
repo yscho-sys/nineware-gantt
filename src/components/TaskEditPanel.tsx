@@ -16,7 +16,6 @@ interface Props {
   defaultStart: string
   defaultDue: string
   defaultTeam?: string // 빈공간 클릭 생성 시 채울 팀
-  autoAddStep?: boolean // 열 때 빈 세부 테스크 한 줄 추가
   templates: ProcessTemplate[]
   onSave: (draft: TaskDraft) => Promise<void>
   onDelete: (id: string) => Promise<void>
@@ -32,7 +31,6 @@ export function TaskEditPanel({
   defaultStart,
   defaultDue,
   defaultTeam,
-  autoAddStep,
   templates,
   onSave,
   onDelete,
@@ -64,13 +62,8 @@ export function TaskEditPanel({
     setSlidesUrl(task?.slides_url ?? '')
     setOwner(task?.owner ?? '')
     setNotes(task?.notes ?? '')
-    const base = task?.steps ?? []
-    setSteps(
-      autoAddStep
-        ? [...base, { id: newStepId(), title: '', url: '', done: false, weight: 1 }]
-        : base,
-    )
-  }, [task, defaultStart, defaultDue, defaultTeam, teams, autoAddStep])
+    setSteps(task?.steps ?? [])
+  }, [task, defaultStart, defaultDue, defaultTeam, teams])
 
   function loadTemplate(id: string) {
     const tpl = templates.find((t) => t.id === id)
@@ -285,7 +278,8 @@ export function TaskEditPanel({
             )}
           </div>
 
-          {/* 세부 테스크 — 단계명 + 구글 워크스페이스 링크 */}
+          {/* 세부 테스크 — 생성 시 숨김, 편집 시에만 관리 (행에서 인라인 추가) */}
+          {!isNew && (
           <div className="field">
             <div className="steps-head">
               <label>세부 테스크</label>
@@ -377,7 +371,7 @@ export function TaskEditPanel({
                     className="icon-btn danger"
                     type="button"
                     onClick={() => removeStep(s.id)}
-                    title="단계 삭제"
+                    title="세부 테스크 삭제"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -385,6 +379,7 @@ export function TaskEditPanel({
               ))}
             </div>
           </div>
+          )}
 
           <div className="field">
             <label>메모</label>

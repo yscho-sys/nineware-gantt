@@ -15,7 +15,7 @@ import { ContextMenu } from './components/ContextMenu'
 import { useTemplates } from './lib/useTemplates'
 import { useLinks } from './lib/useLinks'
 import { parseDate, addDays, toISODate, daysBetween } from './lib/dates'
-import { STATUS_ORDER, STATUS_META } from './types'
+import { STATUS_ORDER, STATUS_META, progressFromSteps } from './types'
 import type { Task, TaskDraft, TaskStatus } from './types'
 
 // 편집 패널 상태: 신규 생성 시 팀/시작일 미리채움 지원
@@ -23,7 +23,6 @@ interface Editing {
   task: Task | null
   team?: string
   start?: string
-  addStep?: boolean // 열 때 빈 세부 테스크 한 줄 자동 추가
 }
 
 type StatusFilter = 'all' | TaskStatus | 'overdue'
@@ -152,6 +151,26 @@ export default function App() {
     [editTask],
   )
 
+  // 행에서 세부 테스크 인라인 추가 → 즉시 저장 + 진행률 재계산
+  const handleAddStep = useCallback(
+    (task: Task, title: string) => {
+      const step = {
+        id: 'step-' + crypto.randomUUID(),
+        title,
+        url: '',
+        done: false,
+        weight: 1,
+      }
+      const steps = [...(task.steps ?? []), step]
+      void editTask(task.id, {
+        ...taskToDraft(task),
+        steps,
+        progress: task.status === 'done' ? 100 : progressFromSteps(steps),
+      })
+    },
+    [editTask],
+  )
+
   const handleMenuDelete = useCallback(
     (task: Task) => {
       if (confirm(`'${task.title}' 테스크를 삭제할까요?`)) void removeTask(task.id)
@@ -255,7 +274,7 @@ export default function App() {
               onReschedule={handleReschedule}
               onTaskContextMenu={(task, x, y) => setMenu({ task, x, y })}
               onCreateNew={() => setEditing({ task: null })}
-              onAddSub={(task) => setEditing({ task, addStep: true })}
+              onAddStep={handleAddStep}
             />
           )}
         </div>
@@ -270,7 +289,6 @@ export default function App() {
           defaultStart={editing.start ?? toISODate(today)}
           defaultDue={toISODate(addDays(parseDate(editing.start ?? toISODate(today)), 14))}
           defaultTeam={editing.team}
-          autoAddStep={editing.addStep}
           templates={templates}
           onSave={handleSave}
           onDelete={removeTask}
