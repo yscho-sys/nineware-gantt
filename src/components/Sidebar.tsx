@@ -1,17 +1,39 @@
-import { Plus, ListTree, Settings2, Eye, EyeOff, ExternalLink, Database, Cloud } from 'lucide-react'
+import {
+  Plus,
+  ListTree,
+  Settings2,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Database,
+  Cloud,
+  LayoutGrid,
+  List,
+} from 'lucide-react'
 import type { QuickLink } from '../types'
+
+export type ViewMode = 'timeline' | 'board' | 'list'
 
 interface Props {
   teams: string[]
   taskCounts: Record<string, number>
-  collapsed: Set<string>
+  hidden: Set<string>
   colorOf: (team: string) => string
   links: QuickLink[]
+  demoMode: boolean
+  view: ViewMode
+  onChangeView: (v: ViewMode) => void
   onNewTask: () => void
-  onToggleTeam: (team: string) => void
+  onToggleHidden: (team: string) => void
   onManageTeams: () => void
   onManageLinks: () => void
 }
+
+const VIEWS: { key: ViewMode; label: string; icon: React.ReactNode }[] = [
+  { key: 'timeline', label: '타임라인', icon: <ListTree size={16} /> },
+  { key: 'board', label: '보드', icon: <LayoutGrid size={16} /> },
+  { key: 'list', label: '목록', icon: <List size={16} /> },
+]
 
 // 용량 게이지 (현재는 표시용 예시값 — Supabase/Firebase 연결 후 실제 수치로 교체 예정)
 const USAGE = {
@@ -56,11 +78,14 @@ function UsageBar({
 export function Sidebar({
   teams,
   taskCounts,
-  collapsed,
+  hidden,
   colorOf,
   links,
+  demoMode,
+  view,
+  onChangeView,
   onNewTask,
-  onToggleTeam,
+  onToggleHidden,
   onManageTeams,
   onManageLinks,
 }: Props) {
@@ -78,9 +103,15 @@ export function Sidebar({
       <div className="side-scroll">
         <div className="side-section">
           <div className="side-label">보기</div>
-          <div className="side-item active">
-            <ListTree size={16} /> 타임라인
-          </div>
+          {VIEWS.map((v) => (
+            <button
+              key={v.key}
+              className={'side-item' + (view === v.key ? ' active' : '')}
+              onClick={() => onChangeView(v.key)}
+            >
+              {v.icon} {v.label}
+            </button>
+          ))}
         </div>
 
         <div className="side-section">
@@ -91,18 +122,18 @@ export function Sidebar({
             </button>
           </div>
           {teams.map((team) => {
-            const isClosed = collapsed.has(team)
+            const isHidden = hidden.has(team)
             return (
               <button
                 key={team}
-                className={'side-item team-item' + (isClosed ? ' muted' : '')}
-                onClick={() => onToggleTeam(team)}
-                title={isClosed ? '펼치기' : '접기'}
+                className={'side-item team-item' + (isHidden ? ' muted' : '')}
+                onClick={() => onToggleHidden(team)}
+                title={isHidden ? '타임라인에 표시' : '타임라인에서 숨기기'}
               >
                 <span className="team-dot" style={{ background: colorOf(team) }} />
                 <span className="team-item-name">{team}</span>
                 <span className="team-item-count">{taskCounts[team] ?? 0}</span>
-                {isClosed ? (
+                {isHidden ? (
                   <EyeOff size={14} className="eye" />
                 ) : (
                   <Eye size={14} className="eye" />
@@ -136,6 +167,12 @@ export function Sidebar({
           {links.length === 0 && <div className="side-empty">링크가 없습니다</div>}
         </div>
       </div>
+
+      {demoMode && (
+        <div className="sidebar-demo" title="Supabase 미연결 — 샘플 데이터로 동작 중">
+          데모 모드 · Supabase 미연결
+        </div>
+      )}
 
       <div className="usage-panel">
         <div className="usage-title">저장 용량</div>

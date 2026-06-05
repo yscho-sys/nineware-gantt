@@ -2,9 +2,12 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTasks } from './lib/useTasks'
 import { useTeams } from './lib/useTeams'
 import { Sidebar } from './components/Sidebar'
+import type { ViewMode } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { ProjectSummary } from './components/ProjectSummary'
 import { GanttChart } from './components/GanttChart'
+import { BoardView } from './components/BoardView'
+import { ListView } from './components/ListView'
 import { TaskEditPanel } from './components/TaskEditPanel'
 import { TeamManager } from './components/TeamManager'
 import { LinkManager } from './components/LinkManager'
@@ -39,7 +42,9 @@ export default function App() {
   const [menu, setMenu] = useState<{ task: Task; x: number; y: number } | null>(null)
   const [showTeams, setShowTeams] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set()) // 간트 내 접기
+  const [hidden, setHidden] = useState<Set<string>>(new Set()) // 사이드바 눈: 타임라인에서 숨김
+  const [view, setView] = useState<ViewMode>('timeline')
   const [filter, setFilter] = useState<StatusFilter>('all')
 
   const today = useMemo(() => {
@@ -50,6 +55,17 @@ export default function App() {
   const toggleTeam = useCallback(
     (team: string) =>
       setCollapsed((prev) => {
+        const next = new Set(prev)
+        if (next.has(team)) next.delete(team)
+        else next.add(team)
+        return next
+      }),
+    [],
+  )
+
+  const toggleHidden = useCallback(
+    (team: string) =>
+      setHidden((prev) => {
         const next = new Set(prev)
         if (next.has(team)) next.delete(team)
         else next.add(team)
@@ -154,35 +170,43 @@ export default function App() {
     { key: 'overdue', label: '지연' },
   ]
 
+  // 보기별 표시 대상 (숨긴 팀 제외)
+  const boardTasks = tasks.filter((t) => !hidden.has(t.team)) // 보드: 모든 상태
+  const listTasks = filteredTasks.filter((t) => !hidden.has(t.team)) // 목록: 상태 필터 반영
+
   return (
     <div className="app">
       <Sidebar
         teams={teams}
         taskCounts={taskCounts}
-        collapsed={collapsed}
+        hidden={hidden}
         colorOf={colorOf}
         links={links}
+        demoMode={demoMode}
+        view={view}
+        onChangeView={setView}
         onNewTask={() => setEditing({ task: null })}
-        onToggleTeam={toggleTeam}
+        onToggleHidden={toggleHidden}
         onManageTeams={() => setShowTeams(true)}
         onManageLinks={() => setShowLinks(true)}
       />
 
       <main className="main">
         <header className="main-header">
-          {demoMode && <span className="demo-badge">데모 모드 (Supabase 미연결)</span>}
           <div className="spacer" />
-          <div className="filter-chips">
-            {filterChips.map((c) => (
-              <button
-                key={c.key}
-                className={'chip' + (filter === c.key ? ' active' : '')}
-                onClick={() => setFilter(c.key)}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
+          {view !== 'board' && (
+            <div className="filter-chips">
+              {filterChips.map((c) => (
+                <button
+                  key={c.key}
+                  className={'chip' + (filter === c.key ? ' active' : '')}
+                  onClick={() => setFilter(c.key)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
         </header>
 
         <div className="main-body">
@@ -202,6 +226,22 @@ export default function App() {
               <br />
               왼쪽 <b>＋ 새 태스크</b> 버튼으로 추가해 보세요.
             </div>
+          ) : view === 'board' ? (
+            <BoardView
+              tasks={boardTasks}
+              colorOf={colorOf}
+              onSelect={(task) => setEditing({ task })}
+              onContextMenu={(task, x, y) => setMenu({ task, x, y })}
+              onSetStatus={handleSetStatus}
+            />
+          ) : view === 'list' ? (
+            <ListView
+              tasks={listTasks}
+              today={today}
+              colorOf={colorOf}
+              onSelect={(task) => setEditing({ task })}
+              onContextMenu={(task, x, y) => setMenu({ task, x, y })}
+            />
           ) : filteredTasks.length === 0 ? (
             <div className="empty-state">해당 조건의 태스크가 없습니다.</div>
           ) : (
@@ -212,6 +252,7 @@ export default function App() {
               today={today}
               selectedId={editing?.task?.id ?? null}
               collapsed={collapsed}
+              hidden={hidden}
               colorOf={colorOf}
               onToggleTeam={toggleTeam}
               onSelect={(task) => setEditing({ task })}

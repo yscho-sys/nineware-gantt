@@ -21,6 +21,18 @@ export interface TaskStep {
   title: string // 단계명 (예: 시장조사, 시안 검토)
   url: string // 구글 워크스페이스 링크 (시트/슬라이드/문서 등)
   done: boolean // 완료 여부
+  weight?: number // 업무 비중 (상대값) — 전체 진행률 계산에 사용. 미지정 시 1(균등)
+}
+
+// 세부 단계 기준 진행률(%) — 완료된 단계의 비중 합 / 전체 비중 합.
+// 비중 미지정(또는 0)이면 1로 간주해 균등 분배.
+export function progressFromSteps(steps: TaskStep[]): number {
+  if (!steps || steps.length === 0) return 0
+  const w = (s: TaskStep) => (s.weight && s.weight > 0 ? s.weight : 1)
+  const total = steps.reduce((sum, s) => sum + w(s), 0)
+  if (total <= 0) return 0
+  const done = steps.reduce((sum, s) => sum + (s.done ? w(s) : 0), 0)
+  return Math.round((done / total) * 100)
 }
 
 // 하나의 업무 태스크

@@ -483,6 +483,26 @@ button {
   width: 4px;
 }
 
+/* 태스크 행은 팀 아래로 한 단 들여쓰기(중첩) */
+.gantt-label.task-label {
+  padding-left: 36px;
+}
+/* 팀 색 가이드 라인 (그룹 연결) */
+.task-label .nest-guide {
+  position: absolute;
+  left: 14px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  opacity: 0.4;
+}
+/* 상태 색 마커는 들여쓴 위치에 */
+.task-label .label-bar {
+  left: 24px;
+  width: 4px;
+  border-radius: 2px;
+}
+
 /* 태스크 세부 단계 칩 */
 .step-chip {
   display: inline-flex;
@@ -687,14 +707,31 @@ button {
   bottom: 0;
   z-index: 0;
 }
+/* 막대 하단 진행도 선 (트랙 + 채움) */
+.task-bar .bar-progress {
+  position: absolute;
+  left: 10px;
+  right: 8px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  z-index: 1;
+  overflow: hidden;
+}
+.task-bar .bar-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+}
 .task-bar .bar-body {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  line-height: 1.25;
+  line-height: 1.2;
   min-width: 0;
+  padding-bottom: 6px;
 }
 .bar-title {
   font-size: 12px;
@@ -1031,6 +1068,61 @@ button {
   color: var(--muted-2);
   padding: 8px 2px;
 }
+
+/* 단계 비중 기반 자동 진행률 표시 */
+.progress-auto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.progress-auto-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.progress-auto-bar > div {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.15s;
+}
+.progress-auto-note {
+  font-size: 11px;
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+
+/* 단계 비중 입력 행 */
+.step-weight-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.step-weight-label {
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+.step-weight-input {
+  width: 64px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+}
+.step-weight-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.step-weight-pct {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
 .step-edit {
   display: flex;
   align-items: flex-start;
@@ -1102,6 +1194,20 @@ button {
   opacity: 1;
 }
 
+/* 데모 모드 배지 (사이드바 하단, 용량 패널 위) */
+.sidebar-demo {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin: 6px 0 2px 2px;
+  padding: 3px 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #f0b35a;
+  background: rgba(240, 160, 40, 0.1);
+  border: 1px solid rgba(240, 160, 40, 0.26);
+  border-radius: 999px;
+}
+
 /* ---------- 용량 게이지 (하단 고정, 트랙으로 묶음) ---------- */
 .usage-panel {
   flex: 0 0 auto;
@@ -1167,6 +1273,180 @@ button {
 .usage-bar > div {
   height: 100%;
   border-radius: 999px;
+}
+
+/* ===================== 보드(칸반) 뷰 ===================== */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.board-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  min-height: 120px;
+}
+.board-col.over {
+  border-color: var(--accent);
+  background: #171b24;
+}
+.board-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.board-col-title {
+  flex: 1;
+}
+.board-col-count {
+  font-size: 11px;
+  color: var(--muted-2);
+  background: var(--bg);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.board-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.board-card {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--border);
+  border-radius: 9px;
+  padding: 10px;
+  cursor: pointer;
+}
+.board-card:hover {
+  background: var(--surface-2);
+}
+.board-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+.board-card-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.board-card-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.board-card-sub {
+  font-size: 11px;
+  color: var(--muted-2);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.board-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 9px 0 7px;
+}
+.board-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+.board-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+.board-empty {
+  font-size: 12px;
+  color: var(--muted-2);
+  text-align: center;
+  padding: 14px 0;
+}
+
+/* ===================== 목록(리스트) 뷰 ===================== */
+.listview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: auto;
+}
+.list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.list-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+.list-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+.list-table tbody tr {
+  cursor: pointer;
+}
+.list-table tbody tr:hover {
+  background: var(--surface-2);
+}
+.list-title {
+  font-weight: 600;
+}
+.list-muted {
+  color: var(--muted);
+}
+.list-overdue {
+  color: var(--danger);
+  font-weight: 600;
+}
+.list-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.list-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.list-progress-bar {
+  width: 70px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.list-progress-bar > div {
+  height: 100%;
+  border-radius: 999px;
+}
+.list-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px;
 }
 
 /* ---------- 우클릭 컨텍스트 메뉴 ---------- */

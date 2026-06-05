@@ -33,6 +33,7 @@ interface Props {
   today: Date
   selectedId: string | null
   collapsed: Set<string>
+  hidden: Set<string>
   colorOf: (team: string) => string
   onToggleTeam: (team: string) => void
   onSelect: (task: Task) => void
@@ -65,6 +66,7 @@ export function GanttChart({
   today,
   selectedId,
   collapsed,
+  hidden,
   colorOf,
   onToggleTeam,
   onSelect,
@@ -131,6 +133,7 @@ export function GanttChart({
   const groups = useMemo(() => {
     const map = new Map<string, Task[]>()
     for (const t of tasks) {
+      if (hidden.has(t.team)) continue // 숨긴 팀은 타임라인에서 완전히 제외
       if (!map.has(t.team)) map.set(t.team, [])
       map.get(t.team)!.push(t)
     }
@@ -140,7 +143,7 @@ export function GanttChart({
         team,
         items: [...items].sort((a, b) => a.sort_order - b.sort_order),
       }))
-  }, [tasks])
+  }, [tasks, hidden])
 
   const ticks = useMemo(() => {
     const arr: { date: Date; left: number }[] = []
@@ -281,6 +284,7 @@ export function GanttChart({
                 return (
                   <div className="gantt-row" key={t.id}>
                     <div className="gantt-label task-label">
+                      <span className="nest-guide" style={{ background: teamCol }} />
                       <span className="label-bar" style={{ background: meta.color }} />
                       <span className="title" title={t.title}>
                         {t.title}
@@ -321,10 +325,12 @@ export function GanttChart({
                         title={`${t.title} · ${meta.label} · ${t.progress}% (드래그로 일정 변경 · 우클릭 메뉴)`}
                       >
                         <span className="bar-accent" style={{ background: meta.color }} />
-                        <div
-                          className="bar-fill"
-                          style={{ width: `${t.progress}%`, background: meta.color + '33' }}
-                        />
+                        <div className="bar-progress">
+                          <div
+                            className="bar-progress-fill"
+                            style={{ width: `${t.progress}%`, background: meta.color }}
+                          />
+                        </div>
                         <span
                           className="bar-handle left"
                           onPointerDown={(e) => startDrag(e, t, 'start')}

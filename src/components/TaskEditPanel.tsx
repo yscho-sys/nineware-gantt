@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, Trash2, ExternalLink, Plus, Save } from 'lucide-react'
 import type { Task, TaskDraft, TaskStatus, TaskStep, ProcessTemplate } from '../types'
-import { STATUS_ORDER, STATUS_META } from '../types'
+import { STATUS_ORDER, STATUS_META, progressFromSteps } from '../types'
 
 function newStepId(): string {
   return 'step-' + crypto.randomUUID()
@@ -73,6 +73,7 @@ export function TaskEditPanel({
       title: s.title,
       url: s.url,
       done: false,
+      weight: 1,
     }))
     setSteps((prev) => {
       // 기존에 입력한 단계가 있으면 뒤에 이어 붙이고, 없으면 교체
@@ -98,7 +99,7 @@ export function TaskEditPanel({
   }
 
   function addStep() {
-    setSteps((prev) => [...prev, { id: newStepId(), title: '', url: '', done: false }])
+    setSteps((prev) => [...prev, { id: newStepId(), title: '', url: '', done: false, weight: 1 }])
   }
   function updateStep(id: string, patch: Partial<TaskStep>) {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
@@ -113,6 +114,12 @@ export function TaskEditPanel({
 
   const canSave = project.trim() && team.trim() && title.trim() && startDate && dueDate && !saving
 
+  // 세부 단계가 있으면 진행률은 비중 기반으로 자동 계산
+  const hasSteps = steps.length > 0
+  const derivedProgress = progressFromSteps(steps)
+  const effectiveProgress = status === 'done' ? 100 : hasSteps ? derivedProgress : progress
+  const weightTotal = steps.reduce((s, x) => s + (x.weight && x.weight > 0 ? x.weight : 1), 0)
+
   async function handleSave() {
     if (!canSave) return
     setSaving(true)
@@ -122,7 +129,7 @@ export function TaskEditPanel({
         team: team.trim(),
         title: title.trim(),
         status,
-        progress: status === 'done' ? 100 : progress,
+        progress: effectiveProgress,
         start_date: startDate,
         due_date: dueDate,
         slides_url: slidesUrl.trim() || null,
@@ -222,18 +229,27 @@ export function TaskEditPanel({
           </div>
 
           <div className="field">
-            <label>진행률 — {status === 'done' ? 100 : progress}%</label>
-            <div className="range-row">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={status === 'done' ? 100 : progress}
-                disabled={status === 'done'}
-                onChange={(e) => setProgress(Number(e.target.value))}
-              />
-            </div>
+            <label>진행률 — {effectiveProgress}%</label>
+            {hasSteps && status !== 'done' ? (
+              <div className="progress-auto">
+                <div className="progress-auto-bar">
+                  <div style={{ width: `${derivedProgress}%` }} />
+                </div>
+                <span className="progress-auto-note">세부 단계 비중 기준 자동 계산</span>
+              </div>
+            ) : (
+              <div className="range-row">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={status === 'done' ? 100 : progress}
+                  disabled={status === 'done'}
+                  onChange={(e) => setProgress(Number(e.target.value))}
+                />
+              </div>
+            )}
           </div>
 
           <div className="row-2">
@@ -329,6 +345,24 @@ export function TaskEditPanel({
                       >
                         <ExternalLink size={15} />
                       </button>
+                    </div>
+                    <div className="step-weight-row">
+                      <span className="step-weight-label">업무 비중</span>
+                      <input
+                        className="step-weight-input"
+                        type="number"
+                        min={0}
+                        value={s.weight ?? 1}
+                        onChange={(e) =>
+                          updateStep(s.id, { weight: Math.max(0, Number(e.target.value) || 0) })
+                        }
+                      />
+                      <span className="step-weight-pct">
+                        = {weightTotal > 0
+                          ? Math.round(((s.weight && s.weight > 0 ? s.weight : 1) / weightTotal) * 100)
+                          : 0}
+                        %
+                      </span>
                     </div>
                   </div>
                   <button
