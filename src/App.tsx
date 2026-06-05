@@ -88,8 +88,16 @@ export default function App() {
     let min = today
     let max = addDays(today, 30)
     if (tasks.length > 0) {
-      const starts = tasks.map((t) => parseDate(t.start_date).getTime())
-      const dues = tasks.map((t) => parseDate(t.due_date).getTime())
+      const starts: number[] = []
+      const dues: number[] = []
+      for (const t of tasks) {
+        starts.push(parseDate(t.start_date).getTime())
+        dues.push(parseDate(t.due_date).getTime())
+        for (const s of t.steps ?? []) {
+          if (s.start_date) starts.push(parseDate(s.start_date).getTime())
+          if (s.due_date) dues.push(parseDate(s.due_date).getTime())
+        }
+      }
       min = new Date(Math.min(...starts, today.getTime()))
       max = new Date(Math.max(...dues, today.getTime()))
     }
@@ -151,7 +159,7 @@ export default function App() {
     [editTask],
   )
 
-  // 행에서 세부 테스크 인라인 추가 → 즉시 저장 + 진행률 재계산
+  // 행에서 세부 테스크 인라인 추가 → 즉시 저장 + 진행률 재계산 (상위 일정으로 기본 배치)
   const handleAddStep = useCallback(
     (task: Task, title: string) => {
       const step = {
@@ -160,8 +168,36 @@ export default function App() {
         url: '',
         done: false,
         weight: 1,
+        start_date: task.start_date,
+        due_date: task.due_date,
       }
       const steps = [...(task.steps ?? []), step]
+      void editTask(task.id, {
+        ...taskToDraft(task),
+        steps,
+        progress: task.status === 'done' ? 100 : progressFromSteps(steps),
+      })
+    },
+    [editTask],
+  )
+
+  // 세부 테스크 막대 드래그 → 그 세부 테스크 일정만 변경
+  const handleRescheduleStep = useCallback(
+    (task: Task, stepId: string, startISO: string, dueISO: string) => {
+      const steps = (task.steps ?? []).map((s) =>
+        s.id === stepId ? { ...s, start_date: startISO, due_date: dueISO } : s,
+      )
+      void editTask(task.id, { ...taskToDraft(task), steps })
+    },
+    [editTask],
+  )
+
+  // 세부 테스크 완료 토글 → 진행률 재계산
+  const handleToggleStep = useCallback(
+    (task: Task, stepId: string) => {
+      const steps = (task.steps ?? []).map((s) =>
+        s.id === stepId ? { ...s, done: !s.done } : s,
+      )
       void editTask(task.id, {
         ...taskToDraft(task),
         steps,
@@ -272,6 +308,8 @@ export default function App() {
               onToggleTeam={toggleTeam}
               onSelect={(task) => setEditing({ task })}
               onReschedule={handleReschedule}
+              onRescheduleStep={handleRescheduleStep}
+              onToggleStep={handleToggleStep}
               onTaskContextMenu={(task, x, y) => setMenu({ task, x, y })}
               onCreateNew={() => setEditing({ task: null })}
               onAddStep={handleAddStep}

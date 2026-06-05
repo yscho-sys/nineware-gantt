@@ -366,6 +366,23 @@ export function TaskEditPanel({
                         %
                       </span>
                     </div>
+                    <div className="step-date-row">
+                      <input
+                        className="step-date-input"
+                        type="date"
+                        value={s.start_date ?? startDate}
+                        onChange={(e) => updateStep(s.id, { start_date: e.target.value })}
+                        title="세부 테스크 시작일"
+                      />
+                      <span className="step-date-sep">~</span>
+                      <input
+                        className="step-date-input"
+                        type="date"
+                        value={s.due_date ?? dueDate}
+                        onChange={(e) => updateStep(s.id, { due_date: e.target.value })}
+                        title="세부 테스크 목표일"
+                      />
+                    </div>
                   </div>
                   <button
                     className="icon-btn danger"

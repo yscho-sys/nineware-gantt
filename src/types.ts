@@ -15,13 +15,15 @@ export const STATUS_META: Record<
 
 export const STATUS_ORDER: TaskStatus[] = ['planned', 'in_progress', 'done', 'hold']
 
-// 테스크의 세부 단계(과정). 클릭하면 link(구글 시트/슬라이드 등)로 이동.
+// 세부 테스크(과정). 각자 일정을 가지며 간트에서 별도 막대 행으로 표시.
 export interface TaskStep {
   id: string
-  title: string // 단계명 (예: 시장조사, 시안 검토)
+  title: string // 세부 테스크명
   url: string // 구글 워크스페이스 링크 (시트/슬라이드/문서 등)
   done: boolean // 완료 여부
   weight?: number // 업무 비중 (상대값) — 전체 진행률 계산에 사용. 미지정 시 1(균등)
+  start_date?: string // 'YYYY-MM-DD' (미지정 시 상위 테스크 일정 사용)
+  due_date?: string // 'YYYY-MM-DD'
 }
 
 // 세부 단계 기준 진행률(%) — 완료된 단계의 비중 합 / 전체 비중 합.
