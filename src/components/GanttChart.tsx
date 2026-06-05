@@ -169,8 +169,17 @@ export function GanttChart({
   function onGanttPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return
     const el = e.target as HTMLElement
-    // 막대/라벨/팀헤더 위에서는 패닝하지 않음 (각자 동작 보유)
-    if (el.closest('.task-bar') || el.closest('.gantt-label') || el.closest('.team-header')) return
+    // 막대/라벨/팀헤더/버튼/입력/링크/하단존 위에서는 패닝하지 않음 (각자 동작 보유)
+    if (
+      el.closest('.task-bar') ||
+      el.closest('.gantt-label') ||
+      el.closest('.team-header') ||
+      el.closest('button') ||
+      el.closest('input') ||
+      el.closest('a') ||
+      el.closest('.gantt-add-zone')
+    )
+      return
     const c = scrollRef.current
     if (!c) return
     c.setPointerCapture(e.pointerId)
