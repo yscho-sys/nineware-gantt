@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void
 }
 
-// 태스크 우클릭 컨텍스트 메뉴 — 상태 즉시 변경 + 편집/복제/삭제
+// 테스크 우클릭 컨텍스트 메뉴 — 상태 즉시 변경 + 편집/복제/삭제
 export function ContextMenu({
   task,
   x,

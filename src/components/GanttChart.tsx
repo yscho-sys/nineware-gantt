@@ -39,12 +39,11 @@ interface Props {
   onSelect: (task: Task) => void
   onReschedule: (task: Task, startISO: string, dueISO: string) => void
   onTaskContextMenu: (task: Task, x: number, y: number) => void
-  onCreateAt: (team: string, startISO: string) => void
   onCreateNew: () => void
-  onEmptyContextMenu: (team: string, startISO: string, x: number, y: number) => void
+  onAddSub: (task: Task) => void
 }
 
-// 드래그 중인 태스크의 미리보기 시작/목표일 계산
+// 드래그 중인 테스크의 미리보기 시작/목표일 계산
 function previewDates(d: DragState): { start: string; due: string } {
   const oStart = parseDate(d.origStart)
   const oDue = parseDate(d.origDue)
@@ -74,9 +73,8 @@ export function GanttChart({
   onSelect,
   onReschedule,
   onTaskContextMenu,
-  onCreateAt,
   onCreateNew,
-  onEmptyContextMenu,
+  onAddSub,
 }: Props) {
   const totalDays = daysBetween(rangeStart, rangeEnd) + 1
   const timelineWidth = totalDays * DAY_W
@@ -191,22 +189,6 @@ export function GanttChart({
     setPanning(false)
   }
 
-  // 빈 타임라인 더블클릭 → 해당 날짜/팀으로 새 태스크
-  function handleTimelineCreate(e: React.MouseEvent, team: string) {
-    if (dragRef.current) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const dayIndex = Math.floor((e.clientX - rect.left) / DAY_W)
-    if (dayIndex < 0) return
-    onCreateAt(team, toISODate(addDays(rangeStart, dayIndex)))
-  }
-
-  // 빈 타임라인 우클릭 위치의 날짜(ISO)
-  function dateAt(e: React.MouseEvent): string {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const dayIndex = Math.max(0, Math.floor((e.clientX - rect.left) / DAY_W))
-    return toISODate(addDays(rangeStart, dayIndex))
-  }
-
   function geom(start: string, due: string) {
     const left = daysBetween(rangeStart, parseDate(start)) * DAY_W
     const span = Math.max(1, daysBetween(parseDate(start), parseDate(due)) + 1)
@@ -235,7 +217,7 @@ export function GanttChart({
     >
       {/* 헤더: 날짜 눈금 */}
       <div className="gantt-row gantt-head">
-        <div className="gantt-label">팀 / 태스크</div>
+        <div className="gantt-label">팀 / 테스크</div>
         <div className="gantt-timeline" style={{ width: timelineWidth }}>
           {ticks.map(({ date, left }, i) => {
             const monthStart = date.getDate() === 1 || i === 0
@@ -258,7 +240,7 @@ export function GanttChart({
         </div>
       </div>
 
-      {/* 팀 그룹 + 태스크 행 */}
+      {/* 팀 그룹 + 테스크 행 */}
       {groups.map((group) => {
         const isClosed = collapsed.has(group.team)
         const teamCol = colorOf(group.team)
@@ -295,7 +277,7 @@ export function GanttChart({
                         {t.title}
                       </span>
                       {stepTotal > 0 && (
-                        <span className="step-chip" title={`세부 단계 ${stepDone}/${stepTotal}`}>
+                        <span className="step-chip" title={`세부 테스크 ${stepDone}/${stepTotal}`}>
                           <Link2 size={11} />
                           {stepDone}/{stepTotal}
                         </span>
@@ -303,16 +285,26 @@ export function GanttChart({
                       {overdue && <span className="overdue-flag">지연</span>}
                     </div>
                     <div
-                      className="gantt-timeline clickable"
+                      className="gantt-timeline"
                       style={{ width: timelineWidth }}
-                      onDoubleClick={(e) => handleTimelineCreate(e, group.team)}
+                      onDoubleClick={() => onAddSub(t)}
                       onContextMenu={(e) => {
                         e.preventDefault()
-                        onEmptyContextMenu(group.team, dateAt(e), e.clientX, e.clientY)
+                        onTaskContextMenu(t, e.clientX, e.clientY)
                       }}
-                      title="빈 곳 더블클릭(또는 우클릭) → 이 팀에 새 태스크"
+                      title="빈 곳 더블클릭 또는 + → 세부 테스크 추가"
                     >
                       {shades}
+                      <button
+                        className="row-sub-add"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onAddSub(t)
+                        }}
+                        title="세부 테스크 추가"
+                      >
+                        <Plus size={13} /> 세부 테스크
+                      </button>
                       <div
                         className={
                           'task-bar' +
@@ -348,7 +340,7 @@ export function GanttChart({
                           <span className="bar-title">{t.title}</span>
                           <span className="bar-sub">
                             {rangeLabel(eff.start, eff.due)} · {t.progress}%
-                            {stepTotal > 0 && ` · 단계 ${stepDone}/${stepTotal}`}
+                            {stepTotal > 0 && ` · 세부 ${stepDone}/${stepTotal}`}
                           </span>
                         </div>
                         <span
@@ -364,7 +356,7 @@ export function GanttChart({
         )
       })}
 
-      {/* 맨 아래 빈 영역 — 클릭/더블클릭/우클릭으로 새 태스크 */}
+      {/* 맨 아래 빈 영역 — 클릭/더블클릭/우클릭으로 새 테스크 */}
       <div
         className="gantt-add-zone"
         onClick={onCreateNew}
@@ -372,9 +364,9 @@ export function GanttChart({
           e.preventDefault()
           onCreateNew()
         }}
-        title="여기를 눌러 새 태스크 추가"
+        title="여기를 눌러 새 테스크 추가"
       >
-        <Plus size={15} /> 새 태스크 추가
+        <Plus size={15} /> 새 테스크 추가
       </div>
     </div>
   )

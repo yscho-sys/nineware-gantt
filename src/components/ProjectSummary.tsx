@@ -59,7 +59,7 @@ export function ProjectSummary({ tasks, today }: Props) {
             <div style={{ width: `${s.avg}%`, background: s.color }} />
           </div>
           <div className="sub">
-            태스크 {s.total} · 완료 {s.done}
+            테스크 {s.total} · 완료 {s.done}
             {s.overdue > 0 && <span className="sub-overdue"> · 지연 {s.overdue}</span>}
           </div>
         </div>

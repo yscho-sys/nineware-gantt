@@ -25,7 +25,7 @@ export function ListView({ tasks, today, colorOf, onSelect, onContextMenu }: Pro
         <thead>
           <tr>
             <th>상태</th>
-            <th>태스크</th>
+            <th>테스크</th>
             <th>프로젝트</th>
             <th>팀</th>
             <th>진행률</th>
@@ -106,7 +106,7 @@ export function ListView({ tasks, today, colorOf, onSelect, onContextMenu }: Pro
           {rows.length === 0 && (
             <tr>
               <td colSpan={8} className="list-empty">
-                표시할 태스크가 없습니다.
+                표시할 테스크가 없습니다.
               </td>
             </tr>
           )}

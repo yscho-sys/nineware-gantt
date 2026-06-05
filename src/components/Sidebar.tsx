@@ -93,11 +93,11 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="brand">
         <img src="/logo-wh.svg" alt="NINEWARE" className="brand-logo" />
-        <span className="brand-sub">(주)나인웨어 업무 통합 대시보드</span>
+        <span className="brand-sub">업무진행 통합 대시보드</span>
       </div>
 
       <button className="new-task-btn" onClick={onNewTask}>
-        <Plus size={16} /> 새 태스크
+        <Plus size={16} /> 새 테스크
       </button>
 
       <div className="side-scroll">

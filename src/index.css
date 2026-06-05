@@ -457,7 +457,7 @@ button {
   width: var(--label-w);
   position: sticky;
   left: 0;
-  z-index: 2;
+  z-index: 6;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -474,7 +474,7 @@ button {
   flex: 1;
 }
 
-/* 좌측 컬러바 (팀=팀색 / 태스크=상태색) */
+/* 좌측 컬러바 (팀=팀색 / 테스크=상태색) */
 .label-bar {
   position: absolute;
   left: 0;
@@ -483,7 +483,7 @@ button {
   width: 4px;
 }
 
-/* 태스크 행은 팀 아래로 한 단 들여쓰기(중첩) */
+/* 테스크 행은 팀 아래로 한 단 들여쓰기(중첩) */
 .gantt-label.task-label {
   padding-left: 36px;
 }
@@ -503,7 +503,7 @@ button {
   border-radius: 2px;
 }
 
-/* 태스크 세부 단계 칩 */
+/* 테스크 세부 단계 칩 */
 .step-chip {
   display: inline-flex;
   align-items: center;
@@ -527,12 +527,12 @@ button {
 .gantt-head {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 7;
   height: var(--head-h);
   background: var(--surface);
 }
 .gantt-head .gantt-label {
-  z-index: 4;
+  z-index: 8;
   font-weight: 700;
   color: var(--muted);
   background: var(--surface);
@@ -629,7 +629,7 @@ button {
   border-radius: 999px;
 }
 
-/* 태스크 행 */
+/* 테스크 행 */
 .status-dot {
   flex: 0 0 auto;
   width: 8px;
@@ -749,7 +749,37 @@ button {
   text-overflow: ellipsis;
 }
 
-/* 맨 아래 새 태스크 추가 존 */
+/* 태스크 행 hover 시 "+ 세부 테스크" */
+.row-sub-add {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  z-index: 4;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+.gantt-row:hover .row-sub-add {
+  opacity: 0.95;
+}
+.row-sub-add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+/* 맨 아래 새 테스크 추가 존 (마우스 오버 시 강조) */
 .gantt-add-zone {
   position: sticky;
   left: 0;
@@ -764,10 +794,13 @@ button {
   border-top: 1px dashed var(--border);
   cursor: pointer;
   user-select: none;
+  opacity: 0.5;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
 }
 .gantt-add-zone:hover {
   color: var(--accent);
   background: var(--surface-2);
+  opacity: 1;
 }
 
 .empty-state {

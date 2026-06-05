@@ -1,4 +1,4 @@
-// 태스크 상태 — 간트바 색상과 요약 카드 분류의 기준
+// 테스크 상태 — 간트바 색상과 요약 카드 분류의 기준
 export type TaskStatus = 'planned' | 'in_progress' | 'done' | 'hold'
 
 // 다크 테마용 색. 기본은 블루+그레이, 오렌지는 좁은 포인트(보류/지연)만 사용.
@@ -15,7 +15,7 @@ export const STATUS_META: Record<
 
 export const STATUS_ORDER: TaskStatus[] = ['planned', 'in_progress', 'done', 'hold']
 
-// 태스크의 세부 단계(과정). 클릭하면 link(구글 시트/슬라이드 등)로 이동.
+// 테스크의 세부 단계(과정). 클릭하면 link(구글 시트/슬라이드 등)로 이동.
 export interface TaskStep {
   id: string
   title: string // 단계명 (예: 시장조사, 시안 검토)
@@ -35,12 +35,12 @@ export function progressFromSteps(steps: TaskStep[]): number {
   return Math.round((done / total) * 100)
 }
 
-// 하나의 업무 태스크
+// 하나의 업무 테스크
 export interface Task {
   id: string
   project: string // 프로젝트 (요약 카드 분류 기준)
   team: string // 팀 (간트 행 그룹화 기준)
-  title: string // 태스크명
+  title: string // 테스크명
   status: TaskStatus
   progress: number // 0~100
   start_date: string // 'YYYY-MM-DD'
@@ -65,7 +65,7 @@ export interface QuickLink {
   color: string
 }
 
-// 팀별 기본 프로세스 템플릿 — 세부 단계 묶음을 저장해 두고 새 태스크에 불러와 사용
+// 팀별 기본 프로세스 템플릿 — 세부 단계 묶음을 저장해 두고 새 테스크에 불러와 사용
 export interface ProcessTemplate {
   id: string
   name: string // 예: 신제품 개발 프로세스

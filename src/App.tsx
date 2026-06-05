@@ -12,7 +12,6 @@ import { TaskEditPanel } from './components/TaskEditPanel'
 import { TeamManager } from './components/TeamManager'
 import { LinkManager } from './components/LinkManager'
 import { ContextMenu } from './components/ContextMenu'
-import { EmptyMenu } from './components/EmptyMenu'
 import { useTemplates } from './lib/useTemplates'
 import { useLinks } from './lib/useLinks'
 import { parseDate, addDays, toISODate, daysBetween } from './lib/dates'
@@ -24,6 +23,7 @@ interface Editing {
   task: Task | null
   team?: string
   start?: string
+  addStep?: boolean // 열 때 빈 세부 테스크 한 줄 자동 추가
 }
 
 type StatusFilter = 'all' | TaskStatus | 'overdue'
@@ -41,12 +41,6 @@ export default function App() {
 
   const [editing, setEditing] = useState<Editing | null>(null)
   const [menu, setMenu] = useState<{ task: Task; x: number; y: number } | null>(null)
-  const [emptyMenu, setEmptyMenu] = useState<{
-    team: string
-    start: string
-    x: number
-    y: number
-  } | null>(null)
   const [showTeams, setShowTeams] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set()) // 간트 내 접기
@@ -128,11 +122,6 @@ export default function App() {
     [editTask],
   )
 
-  // 빈 공간 클릭 → 해당 팀/날짜로 새 태스크
-  const handleCreateAt = useCallback((team: string, startISO: string) => {
-    setEditing({ task: null, team, start: startISO })
-  }, [])
-
   function taskToDraft(task: Task): TaskDraft {
     const { id: _id, created_at: _c, updated_at: _u, ...rest } = task
     return rest
@@ -165,7 +154,7 @@ export default function App() {
 
   const handleMenuDelete = useCallback(
     (task: Task) => {
-      if (confirm(`'${task.title}' 태스크를 삭제할까요?`)) void removeTask(task.id)
+      if (confirm(`'${task.title}' 테스크를 삭제할까요?`)) void removeTask(task.id)
       setMenu(null)
     },
     [removeTask],
@@ -229,9 +218,9 @@ export default function App() {
             <div className="empty-state">불러오는 중…</div>
           ) : tasks.length === 0 ? (
             <div className="empty-state">
-              아직 등록된 태스크가 없습니다.
+              아직 등록된 테스크가 없습니다.
               <br />
-              왼쪽 <b>＋ 새 태스크</b> 버튼으로 추가해 보세요.
+              왼쪽 <b>＋ 새 테스크</b> 버튼으로 추가해 보세요.
             </div>
           ) : view === 'board' ? (
             <BoardView
@@ -250,7 +239,7 @@ export default function App() {
               onContextMenu={(task, x, y) => setMenu({ task, x, y })}
             />
           ) : filteredTasks.length === 0 ? (
-            <div className="empty-state">해당 조건의 태스크가 없습니다.</div>
+            <div className="empty-state">해당 조건의 테스크가 없습니다.</div>
           ) : (
             <GanttChart
               tasks={filteredTasks}
@@ -265,9 +254,8 @@ export default function App() {
               onSelect={(task) => setEditing({ task })}
               onReschedule={handleReschedule}
               onTaskContextMenu={(task, x, y) => setMenu({ task, x, y })}
-              onCreateAt={handleCreateAt}
               onCreateNew={() => setEditing({ task: null })}
-              onEmptyContextMenu={(team, start, x, y) => setEmptyMenu({ team, start, x, y })}
+              onAddSub={(task) => setEditing({ task, addStep: true })}
             />
           )}
         </div>
@@ -282,6 +270,7 @@ export default function App() {
           defaultStart={editing.start ?? toISODate(today)}
           defaultDue={toISODate(addDays(parseDate(editing.start ?? toISODate(today)), 14))}
           defaultTeam={editing.team}
+          autoAddStep={editing.addStep}
           templates={templates}
           onSave={handleSave}
           onDelete={removeTask}
@@ -303,19 +292,6 @@ export default function App() {
           onDelete={handleMenuDelete}
           onSetStatus={handleSetStatus}
           onClose={() => setMenu(null)}
-        />
-      )}
-
-      {emptyMenu && (
-        <EmptyMenu
-          x={emptyMenu.x}
-          y={emptyMenu.y}
-          label={`${emptyMenu.team} · ${emptyMenu.start.slice(5).replace('-', '/')}`}
-          onCreate={() => {
-            handleCreateAt(emptyMenu.team, emptyMenu.start)
-            setEmptyMenu(null)
-          }}
-          onClose={() => setEmptyMenu(null)}
         />
       )}
 

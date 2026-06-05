@@ -16,6 +16,7 @@ interface Props {
   defaultStart: string
   defaultDue: string
   defaultTeam?: string // 빈공간 클릭 생성 시 채울 팀
+  autoAddStep?: boolean // 열 때 빈 세부 테스크 한 줄 추가
   templates: ProcessTemplate[]
   onSave: (draft: TaskDraft) => Promise<void>
   onDelete: (id: string) => Promise<void>
@@ -31,6 +32,7 @@ export function TaskEditPanel({
   defaultStart,
   defaultDue,
   defaultTeam,
+  autoAddStep,
   templates,
   onSave,
   onDelete,
@@ -62,8 +64,13 @@ export function TaskEditPanel({
     setSlidesUrl(task?.slides_url ?? '')
     setOwner(task?.owner ?? '')
     setNotes(task?.notes ?? '')
-    setSteps(task?.steps ?? [])
-  }, [task, defaultStart, defaultDue, defaultTeam, teams])
+    const base = task?.steps ?? []
+    setSteps(
+      autoAddStep
+        ? [...base, { id: newStepId(), title: '', url: '', done: false, weight: 1 }]
+        : base,
+    )
+  }, [task, defaultStart, defaultDue, defaultTeam, teams, autoAddStep])
 
   function loadTemplate(id: string) {
     const tpl = templates.find((t) => t.id === id)
@@ -152,7 +159,7 @@ export function TaskEditPanel({
 
   async function handleDelete() {
     if (!task) return
-    if (!confirm(`'${task.title}' 태스크를 삭제할까요?`)) return
+    if (!confirm(`'${task.title}' 테스크를 삭제할까요?`)) return
     setSaving(true)
     try {
       await onDelete(task.id)
@@ -169,7 +176,7 @@ export function TaskEditPanel({
       <div className="drawer-backdrop" onClick={onClose} />
       <div className="drawer">
         <div className="drawer-head">
-          <h2>{isNew ? '새 태스크' : '태스크 편집'}</h2>
+          <h2>{isNew ? '새 테스크' : '테스크 편집'}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="닫기">
             <X size={20} />
           </button>
@@ -204,7 +211,7 @@ export function TaskEditPanel({
           </div>
 
           <div className="field">
-            <label>태스크명 *</label>
+            <label>테스크명 *</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -236,7 +243,7 @@ export function TaskEditPanel({
                 <div className="progress-auto-bar">
                   <div style={{ width: `${derivedProgress}%` }} />
                 </div>
-                <span className="progress-auto-note">세부 단계 비중 기준 자동 계산</span>
+                <span className="progress-auto-note">세부 테스크 비중 기준 자동 계산</span>
               </div>
             ) : (
               <div className="range-row">
@@ -278,16 +285,16 @@ export function TaskEditPanel({
             )}
           </div>
 
-          {/* 세부 단계 — 단계명 + 구글 워크스페이스 링크 */}
+          {/* 세부 테스크 — 단계명 + 구글 워크스페이스 링크 */}
           <div className="field">
             <div className="steps-head">
-              <label>세부 단계</label>
+              <label>세부 테스크</label>
               <div className="steps-head-actions">
-                <button className="add-step-btn" onClick={saveAsTemplate} type="button" title="현재 단계를 팀 프로세스 템플릿으로 저장">
+                <button className="add-step-btn" onClick={saveAsTemplate} type="button" title="현재 세부 테스크를 팀 프로세스 템플릿으로 저장">
                   <Save size={13} /> 템플릿 저장
                 </button>
                 <button className="add-step-btn" onClick={addStep} type="button">
-                  <Plus size={14} /> 단계 추가
+                  <Plus size={14} /> 세부 테스크 추가
                 </button>
               </div>
             </div>
@@ -312,7 +319,7 @@ export function TaskEditPanel({
             <div className="steps-list">
               {steps.length === 0 && (
                 <div className="steps-empty">
-                  단계를 추가하고 구글 시트·슬라이드·문서 링크를 연결하세요.
+                  세부 테스크를 추가하고 구글 시트·슬라이드·문서 링크를 연결하세요.
                 </div>
               )}
               {steps.map((s, i) => (
@@ -328,7 +335,7 @@ export function TaskEditPanel({
                       className="step-title-input"
                       value={s.title}
                       onChange={(e) => updateStep(s.id, { title: e.target.value })}
-                      placeholder={`단계 ${i + 1} 이름`}
+                      placeholder={`세부 테스크 ${i + 1} 이름`}
                     />
                     <div className="step-url-row">
                       <input
@@ -387,7 +394,7 @@ export function TaskEditPanel({
           {!isNew && task && (
             <button className="btn-danger" onClick={handleDelete} disabled={saving}>
               <Trash2 size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
-              태스크 삭제
+              테스크 삭제
             </button>
           )}
         </div>
