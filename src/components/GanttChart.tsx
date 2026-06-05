@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, Link2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Link2, Plus } from 'lucide-react'
 import type { Task } from '../types'
 import { STATUS_META } from '../types'
 import {
@@ -40,6 +40,8 @@ interface Props {
   onReschedule: (task: Task, startISO: string, dueISO: string) => void
   onTaskContextMenu: (task: Task, x: number, y: number) => void
   onCreateAt: (team: string, startISO: string) => void
+  onCreateNew: () => void
+  onEmptyContextMenu: (team: string, startISO: string, x: number, y: number) => void
 }
 
 // 드래그 중인 태스크의 미리보기 시작/목표일 계산
@@ -73,6 +75,8 @@ export function GanttChart({
   onReschedule,
   onTaskContextMenu,
   onCreateAt,
+  onCreateNew,
+  onEmptyContextMenu,
 }: Props) {
   const totalDays = daysBetween(rangeStart, rangeEnd) + 1
   const timelineWidth = totalDays * DAY_W
@@ -158,7 +162,6 @@ export function GanttChart({
   // ── 타임라인 좌우 드래그(패닝) ──
   const scrollRef = useRef<HTMLDivElement>(null)
   const panRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
-  const suppressClickRef = useRef(false)
   const [panning, setPanning] = useState(false)
 
   function onGanttPointerDown(e: React.PointerEvent) {
@@ -183,23 +186,25 @@ export function GanttChart({
   function onGanttPointerUp(e: React.PointerEvent) {
     const pan = panRef.current
     if (!pan) return
-    if (pan.moved) suppressClickRef.current = true // 패닝 직후 클릭(생성) 억제
     scrollRef.current?.releasePointerCapture(e.pointerId)
     panRef.current = null
     setPanning(false)
   }
 
-  // 빈 타임라인 클릭 → 해당 날짜/팀으로 새 태스크
-  function handleTimelineClick(e: React.MouseEvent, team: string) {
+  // 빈 타임라인 더블클릭 → 해당 날짜/팀으로 새 태스크
+  function handleTimelineCreate(e: React.MouseEvent, team: string) {
     if (dragRef.current) return
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false
-      return
-    }
     const rect = e.currentTarget.getBoundingClientRect()
     const dayIndex = Math.floor((e.clientX - rect.left) / DAY_W)
     if (dayIndex < 0) return
     onCreateAt(team, toISODate(addDays(rangeStart, dayIndex)))
+  }
+
+  // 빈 타임라인 우클릭 위치의 날짜(ISO)
+  function dateAt(e: React.MouseEvent): string {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const dayIndex = Math.max(0, Math.floor((e.clientX - rect.left) / DAY_W))
+    return toISODate(addDays(rangeStart, dayIndex))
   }
 
   function geom(start: string, due: string) {
@@ -300,8 +305,12 @@ export function GanttChart({
                     <div
                       className="gantt-timeline clickable"
                       style={{ width: timelineWidth }}
-                      onClick={(e) => handleTimelineClick(e, group.team)}
-                      title="빈 곳을 클릭하면 이 팀에 새 태스크가 생성됩니다"
+                      onDoubleClick={(e) => handleTimelineCreate(e, group.team)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        onEmptyContextMenu(group.team, dateAt(e), e.clientX, e.clientY)
+                      }}
+                      title="빈 곳 더블클릭(또는 우클릭) → 이 팀에 새 태스크"
                     >
                       {shades}
                       <div
@@ -354,6 +363,19 @@ export function GanttChart({
           </div>
         )
       })}
+
+      {/* 맨 아래 빈 영역 — 클릭/더블클릭/우클릭으로 새 태스크 */}
+      <div
+        className="gantt-add-zone"
+        onClick={onCreateNew}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          onCreateNew()
+        }}
+        title="여기를 눌러 새 태스크 추가"
+      >
+        <Plus size={15} /> 새 태스크 추가
+      </div>
     </div>
   )
 }

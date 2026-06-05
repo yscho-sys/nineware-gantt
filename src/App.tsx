@@ -12,6 +12,7 @@ import { TaskEditPanel } from './components/TaskEditPanel'
 import { TeamManager } from './components/TeamManager'
 import { LinkManager } from './components/LinkManager'
 import { ContextMenu } from './components/ContextMenu'
+import { EmptyMenu } from './components/EmptyMenu'
 import { useTemplates } from './lib/useTemplates'
 import { useLinks } from './lib/useLinks'
 import { parseDate, addDays, toISODate, daysBetween } from './lib/dates'
@@ -40,6 +41,12 @@ export default function App() {
 
   const [editing, setEditing] = useState<Editing | null>(null)
   const [menu, setMenu] = useState<{ task: Task; x: number; y: number } | null>(null)
+  const [emptyMenu, setEmptyMenu] = useState<{
+    team: string
+    start: string
+    x: number
+    y: number
+  } | null>(null)
   const [showTeams, setShowTeams] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set()) // 간트 내 접기
@@ -259,6 +266,8 @@ export default function App() {
               onReschedule={handleReschedule}
               onTaskContextMenu={(task, x, y) => setMenu({ task, x, y })}
               onCreateAt={handleCreateAt}
+              onCreateNew={() => setEditing({ task: null })}
+              onEmptyContextMenu={(team, start, x, y) => setEmptyMenu({ team, start, x, y })}
             />
           )}
         </div>
@@ -294,6 +303,19 @@ export default function App() {
           onDelete={handleMenuDelete}
           onSetStatus={handleSetStatus}
           onClose={() => setMenu(null)}
+        />
+      )}
+
+      {emptyMenu && (
+        <EmptyMenu
+          x={emptyMenu.x}
+          y={emptyMenu.y}
+          label={`${emptyMenu.team} · ${emptyMenu.start.slice(5).replace('-', '/')}`}
+          onCreate={() => {
+            handleCreateAt(emptyMenu.team, emptyMenu.start)
+            setEmptyMenu(null)
+          }}
+          onClose={() => setEmptyMenu(null)}
         />
       )}
 
