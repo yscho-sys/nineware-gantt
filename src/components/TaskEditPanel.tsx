@@ -138,7 +138,8 @@ export function TaskEditPanel({
         steps: steps
           .filter((s) => s.title.trim() || s.url.trim())
           .map((s) => ({ ...s, title: s.title.trim(), url: s.url.trim() })),
-        sort_order: task?.sort_order ?? (Date.parse(startDate) || 0),
+        // 시작일 기준 정렬값(epoch 일수) — integer 범위 내 작은 값
+        sort_order: task?.sort_order ?? Math.floor((Date.parse(startDate) || 0) / 86400000),
       }
       await onSave(draft)
       onClose()
