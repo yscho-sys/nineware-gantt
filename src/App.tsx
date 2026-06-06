@@ -43,14 +43,14 @@ export default function App() {
     task: Task
     x: number
     y: number
-    stepId?: string // 세부 테스크 막대 우클릭 시
+    stepId?: string // 서브 태스크 막대 우클릭 시
     msDate?: string // 그 막대에서 우클릭한 위치의 날짜(마일스톤 추가용)
   } | null>(null)
   const [showTeams, setShowTeams] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set()) // 간트 내 접기
   const [hidden, setHidden] = useState<Set<string>>(new Set()) // 사이드바 눈: 팀 단위 타임라인 숨김
-  const [hiddenTasks, setHiddenTasks] = useState<Set<string>>(new Set()) // 메인테스크 단위 숨김
+  const [hiddenTasks, setHiddenTasks] = useState<Set<string>>(new Set()) // 메인태스크 단위 숨김
   const [view, setView] = useState<ViewMode>('timeline')
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [sidebarOpen, setSidebarOpen] = useState(true) // 좌측 패널 여닫기
@@ -82,7 +82,7 @@ export default function App() {
     [],
   )
 
-  // 메인테스크 단위 타임라인 숨김 토글
+  // 메인태스크 단위 타임라인 숨김 토글
   const toggleHiddenTask = useCallback(
     (taskId: string) =>
       setHiddenTasks((prev) => {
@@ -149,6 +149,31 @@ export default function App() {
     [editTask],
   )
 
+  // 메인태스크 순서 변경(같은 팀 내 라벨 드래그) → sort_order 재할당해 저장
+  const handleReorderTask = useCallback(
+    (fromId: string, toId: string) => {
+      if (fromId === toId) return
+      const from = tasks.find((t) => t.id === fromId)
+      const to = tasks.find((t) => t.id === toId)
+      if (!from || !to || from.team !== to.team) return // 같은 팀 안에서만
+      const teamTasks = tasks
+        .filter((t) => t.team === from.team)
+        .sort((a, b) => a.sort_order - b.sort_order)
+      const fromIdx = teamTasks.findIndex((t) => t.id === fromId)
+      const toIdx = teamTasks.findIndex((t) => t.id === toId)
+      const [moved] = teamTasks.splice(fromIdx, 1)
+      teamTasks.splice(toIdx, 0, moved)
+      // 새 순서대로 sort_order 0,1,2… 재할당 후 변경된 것만 저장
+      teamTasks.forEach((t, i) => {
+        if (t.sort_order !== i) {
+          const { id: _id, created_at: _c, updated_at: _u, ...rest } = t
+          void editTask(t.id, { ...rest, sort_order: i })
+        }
+      })
+    },
+    [tasks, editTask],
+  )
+
   function taskToDraft(task: Task): TaskDraft {
     const { id: _id, created_at: _c, updated_at: _u, ...rest } = task
     return rest
@@ -179,7 +204,7 @@ export default function App() {
     [editTask],
   )
 
-  // 행에서 세부 테스크 인라인 추가 → 즉시 저장 + 진행률 재계산 (상위 일정으로 기본 배치)
+  // 행에서 서브 태스크 인라인 추가 → 즉시 저장 + 진행률 재계산 (상위 일정으로 기본 배치)
   const handleAddStep = useCallback(
     (task: Task, title: string) => {
       const step = {
@@ -201,7 +226,7 @@ export default function App() {
     [editTask],
   )
 
-  // 세부 테스크 막대 드래그 → 그 세부 테스크 일정만 변경
+  // 서브 태스크 막대 드래그 → 그 서브 태스크 일정만 변경
   const handleRescheduleStep = useCallback(
     (task: Task, stepId: string, startISO: string, dueISO: string) => {
       const steps = (task.steps ?? []).map((s) =>
@@ -212,7 +237,7 @@ export default function App() {
     [editTask],
   )
 
-  // 세부 테스크에 마일스톤(점) 추가 — 지정 날짜에 새 이정표
+  // 서브 태스크에 마일스톤(점) 추가 — 지정 날짜에 새 이정표
   const handleAddMilestone = useCallback(
     (task: Task, stepId: string, date: string) => {
       const title = prompt('마일스톤 이름', '')?.trim()
@@ -246,7 +271,7 @@ export default function App() {
 
   const handleMenuDelete = useCallback(
     (task: Task) => {
-      if (confirm(`'${task.title}' 테스크를 삭제할까요?`)) void removeTask(task.id)
+      if (confirm(`'${task.title}' 태스크를 삭제할까요?`)) void removeTask(task.id)
       setMenu(null)
     },
     [removeTask],
@@ -271,8 +296,6 @@ export default function App() {
         colorOf={colorOf}
         links={links}
         demoMode={demoMode}
-        view={view}
-        onChangeView={setView}
         onNewTask={() => setEditing({ task: null })}
         onToggleHidden={toggleHidden}
         onManageTeams={() => setShowTeams(true)}
@@ -294,12 +317,29 @@ export default function App() {
             <span className="brand-sub">업무진행 통합 대시보드</span>
           </div>
           <div className="spacer" />
+          {/* 보기 전환 세그먼트 (타임라인/보드/목록) — 중앙寄り */}
+          <div className="seg-toggle">
+            {([
+              { key: 'timeline', label: '타임라인' },
+              { key: 'board', label: '보드' },
+              { key: 'list', label: '목록' },
+            ] as { key: ViewMode; label: string }[]).map((v) => (
+              <button
+                key={v.key}
+                className={'seg-btn' + (view === v.key ? ' active' : '')}
+                onClick={() => setView(v.key)}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <div className="spacer" />
           {view !== 'board' && (
-            <div className="filter-chips">
+            <div className="seg-toggle">
               {filterChips.map((c) => (
                 <button
                   key={c.key}
-                  className={'chip' + (filter === c.key ? ' active' : '')}
+                  className={'seg-btn' + (filter === c.key ? ' active' : '')}
                   onClick={() => setFilter(c.key)}
                 >
                   {c.label}
@@ -320,9 +360,9 @@ export default function App() {
             <div className="empty-state">불러오는 중…</div>
           ) : tasks.length === 0 ? (
             <div className="empty-state">
-              아직 등록된 테스크가 없습니다.
+              아직 등록된 태스크가 없습니다.
               <br />
-              왼쪽 <b>＋ 새 테스크</b> 버튼으로 추가해 보세요.
+              왼쪽 <b>＋ 새 태스크</b> 버튼으로 추가해 보세요.
             </div>
           ) : view === 'board' ? (
             <BoardView
@@ -341,7 +381,7 @@ export default function App() {
               onContextMenu={(task, x, y) => setMenu({ task, x, y })}
             />
           ) : filteredTasks.length === 0 ? (
-            <div className="empty-state">해당 조건의 테스크가 없습니다.</div>
+            <div className="empty-state">해당 조건의 태스크가 없습니다.</div>
           ) : (
             <GanttChart
               tasks={filteredTasks}
@@ -355,6 +395,7 @@ export default function App() {
               colorOf={colorOf}
               onToggleTeam={toggleTeam}
               onToggleHiddenTask={toggleHiddenTask}
+              onReorderTask={handleReorderTask}
               onSelect={(task) => setEditing({ task })}
               onReschedule={handleReschedule}
               onRescheduleStep={handleRescheduleStep}

@@ -17,7 +17,7 @@ interface Props {
   onClose: () => void
 }
 
-// 테스크 우클릭 컨텍스트 메뉴 — 마일스톤 추가 + 상태 변경 + 편집/복제/삭제
+// 태스크 우클릭 컨텍스트 메뉴 — 마일스톤 추가 + 상태 변경 + 편집/복제/삭제
 export function ContextMenu({
   task,
   x,

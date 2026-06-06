@@ -46,7 +46,7 @@ export interface UseTeamsResult {
 }
 
 // 팀 목록 + 팀별 색을 localStorage 로 관리 (데모/실데이터 모드 공통).
-// onRename: 팀 이름이 바뀌면 해당 팀의 기존 테스크들도 따라 갱신하도록 콜백 호출.
+// onRename: 팀 이름이 바뀌면 해당 팀의 기존 태스크들도 따라 갱신하도록 콜백 호출.
 export function useTeams(onRename?: (oldName: string, newName: string) => void): UseTeamsResult {
   const [teams, setTeams] = useState<string[]>([])
   const [colors, setColors] = useState<Record<string, string>>({})

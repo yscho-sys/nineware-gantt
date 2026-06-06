@@ -18,6 +18,12 @@ function newStepId(): string {
   return 'step-' + crypto.randomUUID()
 }
 
+// '2026-03-02' → '3/2' (짧은 날짜 표기)
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split('-')
+  return `${Number(m)}/${Number(d)}`
+}
+
 interface Props {
   // 편집 대상 Task, 또는 신규 작성 시 null
   task: Task | null
@@ -108,7 +114,7 @@ export function TaskEditPanel({
     setSlidesUrl(task?.slides_url ?? '')
     setOwner(task?.owner ?? '')
     setNotes(task?.notes ?? '')
-    // 세부 테스크 날짜가 비어 있으면 상위 테스크 일정으로 채워, 화면 표시값 = 저장될 값 이 되도록 한다.
+    // 서브 태스크 날짜가 비어 있으면 상위 태스크 일정으로 채워, 화면 표시값 = 저장될 값 이 되도록 한다.
     const baseStart = task?.start_date ?? defaultStart
     const baseDue = task?.due_date ?? defaultDue
     setSteps(
@@ -169,6 +175,9 @@ export function TaskEditPanel({
     )
   }
   function removeStep(id: string) {
+    const target = steps.find((s) => s.id === id)
+    const name = target?.title.trim()
+    if (!confirm(`'${name || '이 서브 태스크'}'를 삭제할까요?`)) return
     setSteps((prev) => prev.filter((s) => s.id !== id))
   }
   function openStep(url: string) {
@@ -183,7 +192,7 @@ export function TaskEditPanel({
   const derivedProgress = progressFromSteps(steps)
   const effectiveProgress = status === 'done' ? 100 : hasSteps ? derivedProgress : progress
 
-  // 세부 테스크 일정의 최소 시작 ~ 최대 종료 (메인 기간 자동 계산용)
+  // 서브 태스크 일정의 최소 시작 ~ 최대 종료 (메인 기간 자동 계산용)
   const autoStart = hasSteps
     ? steps.map((s) => s.start_date || startDate).sort()[0]
     : startDate
@@ -202,7 +211,7 @@ export function TaskEditPanel({
         title: title.trim(),
         status,
         progress: effectiveProgress,
-        // 세부 테스크가 있으면 메인 기간 = 세부 범위(자동). 없으면 입력값.
+        // 서브 태스크가 있으면 메인 기간 = 세부 범위(자동). 없으면 입력값.
         start_date: hasSteps ? autoStart : startDate,
         due_date: hasSteps ? autoDue : dueDate,
         slides_url: slidesUrl.trim() || null,
@@ -225,7 +234,7 @@ export function TaskEditPanel({
 
   async function handleDelete() {
     if (!task) return
-    if (!confirm(`'${task.title}' 테스크를 삭제할까요?`)) return
+    if (!confirm(`'${task.title}' 태스크를 삭제할까요?`)) return
     setSaving(true)
     try {
       await onDelete(task.id)
@@ -242,7 +251,7 @@ export function TaskEditPanel({
       <div className="drawer-backdrop" onClick={onClose} />
       <div className="drawer">
         <div className="drawer-head">
-          <h2>{isNew ? '새 테스크' : '테스크 편집'}</h2>
+          <h2>{isNew ? '새 태스크' : '태스크 편집'}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="닫기">
             <X size={20} />
           </button>
@@ -277,7 +286,7 @@ export function TaskEditPanel({
           </div>
 
           <div className="field">
-            <label>테스크명 *</label>
+            <label>태스크명 *</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -309,7 +318,7 @@ export function TaskEditPanel({
                 <div className="progress-auto-bar">
                   <div style={{ width: `${derivedProgress}%` }} />
                 </div>
-                <span className="progress-auto-note">세부 테스크 비중 기준 자동 계산</span>
+                <span className="progress-auto-note">서브 태스크 비중 기준 자동 계산</span>
               </div>
             ) : (
               <div className="range-row">
@@ -328,13 +337,13 @@ export function TaskEditPanel({
             )}
           </div>
 
-          {/* 세부 테스크가 있으면 메인 일정은 세부 범위로 자동 계산되므로 입력란을 숨긴다.
-              (메인테스크는 '프로젝트 묶음'일 뿐 — 차트 막대는 세부 테스크 일정으로만 그려진다) */}
+          {/* 서브 태스크가 있으면 메인 일정은 세부 범위로 자동 계산되므로 입력란을 숨긴다.
+              (메인태스크는 '프로젝트 묶음'일 뿐 — 차트 막대는 서브 태스크 일정으로만 그려진다) */}
           {hasSteps ? (
             <div className="field">
               <label>기간</label>
               <div className="auto-range-note">
-                세부 테스크 일정으로 자동 계산 ({autoRangeLabel})
+                서브 태스크 일정으로 자동 계산 ({autoRangeLabel})
               </div>
             </div>
           ) : (
@@ -374,17 +383,17 @@ export function TaskEditPanel({
             )}
           </div>
 
-          {/* 세부 테스크 — 생성 시 숨김, 편집 시에만 관리 (행에서 인라인 추가) */}
+          {/* 서브 태스크 — 생성 시 숨김, 편집 시에만 관리 (행에서 인라인 추가) */}
           {!isNew && (
           <div className="field">
             <div className="steps-head">
-              <label>세부 테스크</label>
+              <label>서브 태스크</label>
               <div className="steps-head-actions">
-                <button className="add-step-btn" onClick={saveAsTemplate} type="button" title="현재 세부 테스크를 팀 프로세스 템플릿으로 저장">
+                <button className="add-step-btn" onClick={saveAsTemplate} type="button" title="현재 서브 태스크를 팀 프로세스 템플릿으로 저장">
                   <Save size={13} /> 템플릿 저장
                 </button>
                 <button className="add-step-btn" onClick={addStep} type="button">
-                  <Plus size={14} /> 세부 테스크 추가
+                  <Plus size={14} /> 서브 태스크 추가
                 </button>
               </div>
             </div>
@@ -409,7 +418,7 @@ export function TaskEditPanel({
             <div className="steps-list">
               {steps.length === 0 && (
                 <div className="steps-empty">
-                  세부 테스크를 추가하고 구글 시트·슬라이드·문서 링크를 연결하세요.
+                  서브 태스크를 추가하고 구글 시트·슬라이드·문서 링크를 연결하세요.
                 </div>
               )}
               {steps.map((s, i) => {
@@ -421,7 +430,8 @@ export function TaskEditPanel({
                   className={
                     'step-card' +
                     (isOpen ? ' open' : '') +
-                    (dragOverId === s.id ? ' drag-over' : '')
+                    (dragOverId === s.id ? ' drag-over' : '') +
+                    (colorPickerFor === s.id ? ' color-open' : '')
                   }
                   key={s.id}
                   onDragOver={(e) => {
@@ -479,27 +489,14 @@ export function TaskEditPanel({
                       )}
                     </div>
                     <input
-                      type="checkbox"
-                      className="step-card-check"
-                      checked={s.done}
-                      onChange={(e) => updateStep(s.id, { done: e.target.checked })}
-                      title="완료 표시"
+                      className={'step-title-input' + (s.done ? ' done' : '')}
+                      value={s.title}
+                      onChange={(e) => updateStep(s.id, { title: e.target.value })}
+                      placeholder={`서브 태스크 ${i + 1} 이름`}
                     />
-                    {isOpen ? (
-                      <input
-                        className="step-title-input"
-                        value={s.title}
-                        onChange={(e) => updateStep(s.id, { title: e.target.value })}
-                        placeholder={`세부 테스크 ${i + 1} 이름`}
-                      />
-                    ) : (
-                      <span className={'step-card-title' + (s.done ? ' done' : '')} title={s.title}>
-                        {s.title || `세부 테스크 ${i + 1}`}
-                      </span>
-                    )}
                     {!isOpen && (
                       <span className="step-card-dates">
-                        {sStart.slice(5)}~{sDue.slice(5)}
+                        {shortDate(sStart)}~{shortDate(sDue)}
                       </span>
                     )}
                     <button
@@ -514,7 +511,7 @@ export function TaskEditPanel({
                       className="icon-btn danger"
                       type="button"
                       onClick={() => removeStep(s.id)}
-                      title="세부 테스크 삭제"
+                      title="서브 태스크 삭제"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -560,7 +557,7 @@ export function TaskEditPanel({
                           value={sStart}
                           onChange={(e) => updateStep(s.id, { start_date: e.target.value })}
                           onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
-                          title="세부 테스크 시작일"
+                          title="서브 태스크 시작일"
                         />
                         <span className="step-date-sep">~</span>
                         <input
@@ -569,7 +566,7 @@ export function TaskEditPanel({
                           value={sDue}
                           onChange={(e) => updateStep(s.id, { due_date: e.target.value })}
                           onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
-                          title="세부 테스크 목표일"
+                          title="서브 태스크 목표일"
                         />
                       </div>
 
@@ -653,7 +650,7 @@ export function TaskEditPanel({
           {!isNew && task && (
             <button className="btn-danger" onClick={handleDelete} disabled={saving}>
               <Trash2 size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
-              테스크 삭제
+              태스크 삭제
             </button>
           )}
         </div>

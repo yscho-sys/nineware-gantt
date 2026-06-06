@@ -1,14 +1,11 @@
 import {
   Plus,
-  ListTree,
   Settings2,
   Eye,
   EyeOff,
   ExternalLink,
   Database,
   Cloud,
-  LayoutGrid,
-  List,
 } from 'lucide-react'
 import type { QuickLink } from '../types'
 
@@ -21,19 +18,11 @@ interface Props {
   colorOf: (team: string) => string
   links: QuickLink[]
   demoMode: boolean
-  view: ViewMode
-  onChangeView: (v: ViewMode) => void
   onNewTask: () => void
   onToggleHidden: (team: string) => void
   onManageTeams: () => void
   onManageLinks: () => void
 }
-
-const VIEWS: { key: ViewMode; label: string; icon: React.ReactNode }[] = [
-  { key: 'timeline', label: '타임라인', icon: <ListTree size={16} /> },
-  { key: 'board', label: '보드', icon: <LayoutGrid size={16} /> },
-  { key: 'list', label: '목록', icon: <List size={16} /> },
-]
 
 // 용량 게이지 (현재는 표시용 예시값 — Supabase/Firebase 연결 후 실제 수치로 교체 예정)
 const USAGE = {
@@ -82,8 +71,6 @@ export function Sidebar({
   colorOf,
   links,
   demoMode,
-  view,
-  onChangeView,
   onNewTask,
   onToggleHidden,
   onManageTeams,
@@ -92,23 +79,10 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <button className="new-task-btn" onClick={onNewTask}>
-        <Plus size={16} /> 새 테스크
+        <Plus size={16} /> 새 태스크
       </button>
 
       <div className="side-scroll">
-        <div className="side-section">
-          <div className="side-label">보기</div>
-          {VIEWS.map((v) => (
-            <button
-              key={v.key}
-              className={'side-item' + (view === v.key ? ' active' : '')}
-              onClick={() => onChangeView(v.key)}
-            >
-              {v.icon} {v.label}
-            </button>
-          ))}
-        </div>
-
         <div className="side-section">
           <div className="side-label">
             <span>팀</span>
@@ -154,9 +128,8 @@ export function Sidebar({
               target="_blank"
               rel="noreferrer"
             >
-              <span className="team-dot" style={{ background: l.color }} />
+              <ExternalLink size={13} className="link-ico" style={{ color: l.color }} />
               <span className="team-item-name">{l.name}</span>
-              <ExternalLink size={13} className="eye" />
             </a>
           ))}
           {links.length === 0 && <div className="side-empty">링크가 없습니다</div>}

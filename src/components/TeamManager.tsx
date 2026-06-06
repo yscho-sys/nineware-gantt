@@ -40,7 +40,7 @@ export function TeamManager({
     const count = taskCounts[team] ?? 0
     const msg =
       count > 0
-        ? `'${team}' 팀에 테스크 ${count}건이 있습니다. 팀 목록에서만 제거하며 테스크는 남습니다. 계속할까요?`
+        ? `'${team}' 팀에 태스크 ${count}건이 있습니다. 팀 목록에서만 제거하며 태스크는 남습니다. 계속할까요?`
         : `'${team}' 팀을 삭제할까요?`
     if (confirm(msg)) onRemove(team)
   }

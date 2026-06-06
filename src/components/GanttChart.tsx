@@ -33,15 +33,15 @@ const ZOOM_DAY_W: Record<ZoomLevel, number> = { day: 34, week: 14, month: 6 }
 const ZOOM_ORDER: ZoomLevel[] = ['day', 'week', 'month'] // 일(기본) → 주 → 월
 const ZOOM_LABEL: Record<ZoomLevel, string> = { day: '일', week: '주', month: '월' }
 
-// 세부 테스크 고유색 — color 지정 시 그 값, 없으면 인덱스 기반 자동색
+// 서브 태스크 고유색 — color 지정 시 그 값, 없으면 인덱스 기반 자동색
 function stepColor(s: TaskStep, index: number): string {
   return s.color || STEP_COLORS[index % STEP_COLORS.length]
 }
 
 type DragMode = 'move' | 'start' | 'end'
 interface DragState {
-  id: string // 상위 테스크 id
-  stepId?: string // 세부 테스크면 그 id
+  id: string // 상위 태스크 id
+  stepId?: string // 서브 태스크면 그 id
   mode: DragMode
   startClientX: number
   origStart: string
@@ -62,6 +62,7 @@ interface Props {
   colorOf: (team: string) => string
   onToggleTeam: (team: string) => void
   onToggleHiddenTask: (taskId: string) => void
+  onReorderTask: (fromId: string, toId: string) => void
   onSelect: (task: Task) => void
   onReschedule: (task: Task, startISO: string, dueISO: string) => void
   onRescheduleStep: (task: Task, stepId: string, startISO: string, dueISO: string) => void
@@ -100,6 +101,7 @@ export function GanttChart({
   colorOf,
   onToggleTeam,
   onToggleHiddenTask,
+  onReorderTask,
   onSelect,
   onReschedule,
   onRescheduleStep,
@@ -119,6 +121,26 @@ export function GanttChart({
   dragRef.current = drag
   const dragging = !!drag
 
+  // 메인태스크 라벨 드래그(순서 변경)
+  const taskDragId = useRef<string | null>(null)
+  const [taskDragOver, setTaskDragOver] = useState<string | null>(null)
+
+  // 서브태스크 칩 팝업 (fixed — 차트 overflow에 안 잘림)
+  const [subPop, setSubPop] = useState<{ taskId: string; x: number; y: number; subs: TaskStep[]; task: Task } | null>(null)
+  const subPopTimer = useRef<number | null>(null)
+  function openSubPop(e: React.PointerEvent, task: Task, subs: TaskStep[]) {
+    if (subPopTimer.current) { clearTimeout(subPopTimer.current); subPopTimer.current = null }
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setSubPop({ taskId: task.id, x: r.left, y: r.bottom + 4, subs, task })
+  }
+  function closeSubPop() {
+    if (subPopTimer.current) clearTimeout(subPopTimer.current)
+    subPopTimer.current = window.setTimeout(() => setSubPop(null), 120)
+  }
+  function keepSubPop() {
+    if (subPopTimer.current) { clearTimeout(subPopTimer.current); subPopTimer.current = null }
+  }
+
   // 마일스톤(점) 드래그 — 날짜 이동
   interface MsDrag {
     task: Task
@@ -135,7 +157,7 @@ export function GanttChart({
   const msDragRef = useRef<MsDrag | null>(null)
   msDragRef.current = msDrag
 
-  // 세부 테스크를 접은 상위 테스크 id
+  // 서브 태스크를 접은 상위 태스크 id
   const [closedTasks, setClosedTasks] = useState<Set<string>>(new Set())
   const toggleTask = (id: string) =>
     setClosedTasks((prev) => {
@@ -145,7 +167,7 @@ export function GanttChart({
       return next
     })
 
-  // 행 인라인 세부 테스크 추가
+  // 행 인라인 서브 태스크 추가
   const [addingFor, setAddingFor] = useState<string | null>(null)
   const [addText, setAddText] = useState('')
 
@@ -223,7 +245,7 @@ export function GanttChart({
     const c = scrollRef.current
     if (c) c.scrollTo({ left: Math.max(0, todayLeft - DAY_W * 5), behavior: 'smooth' })
   }
-  // 특정 날짜의 막대 시작점으로 스크롤(세부테스크 칩 클릭)
+  // 특정 날짜의 막대 시작점으로 스크롤(서브태스크 칩 클릭)
   function scrollToDate(dateISO: string) {
     const c = scrollRef.current
     if (!c) return
@@ -341,6 +363,12 @@ export function GanttChart({
           <div key={'w' + i} className="col-shade weekend" style={{ left, width: DAY_W }} />
         ) : null,
       )}
+      {/* 월이 바뀌는 세로 점선 (월 첫날 칸 왼쪽 모서리) */}
+      {ticks.map(({ date, left }, i) =>
+        date.getDate() === 1 && i !== 0 ? (
+          <div key={'m' + i} className="month-line" style={{ left }} />
+        ) : null,
+      )}
       {todayVisible && <div className="col-shade today" style={{ left: todayLeft, width: DAY_W }} />}
       {todayVisible && <div className="today-line" style={{ left: todayLeft + DAY_W / 2 }} />}
     </>
@@ -354,7 +382,7 @@ export function GanttChart({
           className="row-sub-input"
           autoFocus
           value={addText}
-          placeholder="세부 테스크 이름 입력 후 Enter"
+          placeholder="서브 태스크 이름 입력 후 Enter"
           onChange={(e) => setAddText(e.target.value)}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
@@ -377,14 +405,15 @@ export function GanttChart({
           setAddText('')
           setAddingFor(t.id)
         }}
-        title="세부 테스크 추가"
+        title="서브 태스크 추가"
       >
-        <Plus size={13} /> 세부 테스크
+        <Plus size={13} /> 서브 태스크
       </button>
     )
   }
 
   return (
+    <>
     <div
       ref={scrollRef}
       className={'gantt' + (dragging ? ' dragging' : '') + (panning ? ' panning' : '')}
@@ -395,7 +424,7 @@ export function GanttChart({
       {/* 헤더: 날짜 눈금 */}
       <div className="gantt-row gantt-head">
         <div className="gantt-label gantt-head-label">
-          <span>팀 / 테스크</span>
+          <span>팀 / 태스크</span>
           <div className="zoom-toggle">
             {ZOOM_ORDER.map((z) => (
               <button
@@ -436,7 +465,11 @@ export function GanttChart({
         const teamClosed = collapsed.has(group.team)
         const teamCol = colorOf(group.team)
         return (
-          <div className="team-group" key={group.team}>
+          <div
+            className="team-group"
+            key={group.team}
+            style={{ '--team-color': teamCol } as React.CSSProperties}
+          >
             <div className="team-header" onClick={() => onToggleTeam(group.team)}>
               <div className="gantt-label">
                 <span className="label-bar" style={{ background: teamCol }} />
@@ -458,7 +491,7 @@ export function GanttChart({
                 const subStart = (s: TaskStep) => s.start_date || t.start_date
                 const subDue = (s: TaskStep) => s.due_date || t.due_date
 
-                // ── 세부 테스크가 없는 테스크: 단일 막대 행 ──
+                // ── 서브 태스크가 없는 태스크: 단일 막대 행 ──
                 if (!hasSubs) {
                   const isDragged = drag?.id === t.id && !drag.stepId
                   const eff = isDragged
@@ -469,7 +502,31 @@ export function GanttChart({
                   const soloHidden = hiddenTasks.has(t.id)
                   return (
                     <div className="gantt-row" key={t.id}>
-                      <div className="gantt-label task-label">
+                      <div
+                        className={'gantt-label task-label' + (taskDragOver === t.id ? ' task-drop' : '')}
+                        draggable
+                        onDragStart={(e) => {
+                          taskDragId.current = t.id
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(e) => {
+                          if (taskDragId.current && taskDragId.current !== t.id) {
+                            e.preventDefault()
+                            setTaskDragOver(t.id)
+                          }
+                        }}
+                        onDragLeave={() => setTaskDragOver((d) => (d === t.id ? null : d))}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          if (taskDragId.current) onReorderTask(taskDragId.current, t.id)
+                          taskDragId.current = null
+                          setTaskDragOver(null)
+                        }}
+                        onDragEnd={() => {
+                          taskDragId.current = null
+                          setTaskDragOver(null)
+                        }}
+                      >
                         <span className="nest-guide" style={{ background: teamCol }} />
                         <span className="label-bar" style={{ background: meta.color }} />
                         <span className="title" title={t.title}>
@@ -498,7 +555,7 @@ export function GanttChart({
                           e.preventDefault()
                           onTaskContextMenu(t, e.clientX, e.clientY)
                         }}
-                        title="빈 곳 더블클릭 또는 + → 세부 테스크 추가"
+                        title="빈 곳 더블클릭 또는 + → 서브 태스크 추가"
                       >
                         {shades}
                         {addControl(t)}
@@ -534,15 +591,15 @@ export function GanttChart({
                   )
                 }
 
-                // ── 세부 테스크가 있는 테스크(메인테스크): 그룹 헤더 + 압축 레인 ──
-                // 메인테스크는 자기 막대를 그리지 않고 접기/펼치기 묶음 역할만 한다.
+                // ── 서브 태스크가 있는 태스크(메인태스크): 그룹 헤더 + 압축 레인 ──
+                // 메인태스크는 자기 막대를 그리지 않고 접기/펼치기 묶음 역할만 한다.
                 const taskHidden = hiddenTasks.has(t.id)
                 const taskClosed = closedTasks.has(t.id) || taskHidden
-                // 레인 패킹: 일정이 안 겹치는 세부 테스크끼리 같은 행에 모은다.
+                // 레인 패킹: 일정이 안 겹치는 서브 태스크끼리 같은 행에 모은다.
                 const { laneOf, laneCount } = packLanes(
                   subs.map((s) => ({ start: subStart(s), due: subDue(s) })),
                 )
-                // 레인별 세부 테스크 묶음 (원본 인덱스 보존 → 고유색 계산용)
+                // 레인별 서브 태스크 묶음 (원본 인덱스 보존 → 고유색 계산용)
                 const lanes: { step: TaskStep; index: number }[][] = Array.from(
                   { length: laneCount },
                   () => [],
@@ -550,9 +607,35 @@ export function GanttChart({
                 subs.forEach((s, i) => lanes[laneOf[i]].push({ step: s, index: i }))
                 return (
                   <div className="task-group" key={t.id}>
-                    {/* 메인테스크(그룹) 헤더 행 — 타임라인엔 막대 없음 */}
+                    {/* 메인태스크(그룹) 헤더 행 — 타임라인엔 막대 없음 */}
                     <div className="gantt-row task-group-row">
-                      <div className="gantt-label task-label" onClick={() => toggleTask(t.id)} style={{ cursor: 'pointer' }}>
+                      <div
+                        className={'gantt-label task-label' + (taskDragOver === t.id ? ' task-drop' : '')}
+                        onClick={() => toggleTask(t.id)}
+                        style={{ cursor: 'pointer' }}
+                        draggable
+                        onDragStart={(e) => {
+                          taskDragId.current = t.id
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(e) => {
+                          if (taskDragId.current && taskDragId.current !== t.id) {
+                            e.preventDefault()
+                            setTaskDragOver(t.id)
+                          }
+                        }}
+                        onDragLeave={() => setTaskDragOver((d) => (d === t.id ? null : d))}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          if (taskDragId.current) onReorderTask(taskDragId.current, t.id)
+                          taskDragId.current = null
+                          setTaskDragOver(null)
+                        }}
+                        onDragEnd={() => {
+                          taskDragId.current = null
+                          setTaskDragOver(null)
+                        }}
+                      >
                         <span className="nest-guide" style={{ background: teamCol }} />
                         {taskClosed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                         <span className="label-bar" style={{ background: meta.color }} />
@@ -585,44 +668,28 @@ export function GanttChart({
                           e.preventDefault()
                           onTaskContextMenu(t, e.clientX, e.clientY)
                         }}
-                        title="빈 곳 더블클릭 또는 + → 세부 테스크 추가"
+                        title="빈 곳 더블클릭 또는 + → 서브 태스크 추가"
                       >
                         {shades}
                         {addControl(t)}
                       </div>
                     </div>
 
-                    {/* 세부 테스크 레인 행들 — 항상 펼쳐진 한 줄 막대 */}
+                    {/* 서브 태스크 레인 행들 — 항상 펼쳐진 한 줄 막대 */}
                     {!taskClosed &&
                       lanes.map((lane, laneIdx) => (
                         <div className="gantt-row lane-row" key={t.id + '-lane-' + laneIdx}>
                           <div className="gantt-label sub-label">
                             <span className="nest-guide" style={{ background: teamCol }} />
                             {laneIdx === 0 && (
-                              <div className="sub-pill-wrap">
-                                <span className="sub-pill">
-                                  세부테스크 {subs.length}개
-                                  <ChevronDown size={11} className="sub-pill-caret" />
-                                </span>
-                                {/* 호버 시 칩 목록 팝업 */}
-                                <div className="sub-pop">
-                                  {subs.map((sub, si) => (
-                                    <button
-                                      key={sub.id}
-                                      className="sub-chip"
-                                      style={{ '--chip-color': stepColor(sub, si) } as React.CSSProperties}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        scrollToDate(subStart(sub))
-                                      }}
-                                      title={`${sub.title} — 시작점으로 이동`}
-                                    >
-                                      <span className="sub-chip-dot" />
-                                      <span className="sub-chip-name">{sub.title || `세부 ${si + 1}`}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
+                              <span
+                                className="sub-pill"
+                                onPointerEnter={(e) => openSubPop(e, t, subs)}
+                                onPointerLeave={closeSubPop}
+                              >
+                                서브태스크 {subs.length}개
+                                <ChevronDown size={11} className="sub-pill-caret" />
+                              </span>
                             )}
                           </div>
                           <div className="gantt-timeline" style={{ width: timelineWidth }}>
@@ -746,7 +813,7 @@ export function GanttChart({
         )
       })}
 
-      {/* 맨 아래 — 새 테스크 추가 + 차트 네비게이션 */}
+      {/* 맨 아래 — 새 태스크 추가 + 차트 네비게이션 */}
       <div className="gantt-footer">
         <div
           className="gantt-add-zone"
@@ -755,9 +822,9 @@ export function GanttChart({
             e.preventDefault()
             onCreateNew()
           }}
-          title="여기를 눌러 새 테스크 추가"
+          title="여기를 눌러 새 태스크 추가"
         >
-          <Plus size={15} /> 새 테스크 추가
+          <Plus size={15} /> 새 태스크 추가
         </div>
         <div className="gantt-nav">
           <button className="gantt-nav-btn" onClick={scrollToStart} title="태스크 처음으로">
@@ -772,5 +839,32 @@ export function GanttChart({
         </div>
       </div>
     </div>
+
+    {/* 서브태스크 칩 팝업 — fixed라 차트 overflow에 안 잘림 */}
+    {subPop && (
+      <div
+        className="sub-pop-fixed"
+        style={{ left: subPop.x, top: subPop.y }}
+        onPointerEnter={keepSubPop}
+        onPointerLeave={closeSubPop}
+      >
+        {subPop.subs.map((sub, si) => (
+          <button
+            key={sub.id}
+            className="sub-chip"
+            style={{ '--chip-color': stepColor(sub, si) } as React.CSSProperties}
+            onClick={() => {
+              scrollToDate(sub.start_date || subPop.task.start_date)
+              setSubPop(null)
+            }}
+            title={`${sub.title} — 시작점으로 이동`}
+          >
+            <span className="sub-chip-dot" />
+            <span className="sub-chip-name">{sub.title || `세부 ${si + 1}`}</span>
+          </button>
+        ))}
+      </div>
+    )}
+    </>
   )
 }
