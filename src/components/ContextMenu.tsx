@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { Pencil, Copy, Trash2, ExternalLink, MapPin } from 'lucide-react'
-import type { Task, TaskStatus } from '../types'
+import { Pencil, Copy, Trash2, ExternalLink, MapPin, Check } from 'lucide-react'
+import type { Task, TaskStatus, Milestone } from '../types'
 import { STATUS_ORDER, STATUS_META } from '../types'
 import { parseDate, shortLabel } from '../lib/dates'
 
@@ -9,7 +9,9 @@ interface Props {
   x: number
   y: number
   milestoneDate?: string // 세부 막대 우클릭 시 그 날짜 (마일스톤 추가용)
+  milestones?: Milestone[] // 우클릭한 서브태스크의 마일스톤들 (완료 토글용)
   onAddMilestone?: () => void
+  onToggleMilestone?: (milestoneId: string) => void
   onEdit: (task: Task) => void
   onDuplicate: (task: Task) => void
   onDelete: (task: Task) => void
@@ -23,7 +25,9 @@ export function ContextMenu({
   x,
   y,
   milestoneDate,
+  milestones,
   onAddMilestone,
+  onToggleMilestone,
   onEdit,
   onDuplicate,
   onDelete,
@@ -61,6 +65,26 @@ export function ContextMenu({
           <button className="ctx-item" onClick={onAddMilestone}>
             <MapPin size={14} /> 마일스톤 추가 ({shortLabel(parseDate(milestoneDate))})
           </button>
+          <div className="ctx-sep" />
+        </>
+      )}
+
+      {/* 마일스톤 완료 확인 체크 */}
+      {onToggleMilestone && milestones && milestones.length > 0 && (
+        <>
+          <div className="ctx-label">마일스톤 완료 확인</div>
+          {milestones.map((m) => (
+            <button
+              key={m.id}
+              className={'ctx-item ctx-ms' + (m.done ? ' done' : '')}
+              onClick={() => onToggleMilestone(m.id)}
+            >
+              <span className={'ctx-ms-check' + (m.done ? ' done' : '')}>
+                {m.done && <Check size={11} />}
+              </span>
+              {m.title || '(이름 없음)'} · {shortLabel(parseDate(m.date))}
+            </button>
+          ))}
           <div className="ctx-sep" />
         </>
       )}

@@ -281,6 +281,24 @@ export default function App() {
     [editTask],
   )
 
+  // 마일스톤 완료 토글(점 클릭) — 기한 지나도 완료 처리하면 경고 해제
+  const handleToggleMilestone = useCallback(
+    (task: Task, stepId: string, milestoneId: string) => {
+      const steps = (task.steps ?? []).map((s) =>
+        s.id === stepId
+          ? {
+              ...s,
+              milestones: (s.milestones ?? []).map((m) =>
+                m.id === milestoneId ? { ...m, done: !m.done } : m,
+              ),
+            }
+          : s,
+      )
+      void editTask(task.id, { ...taskToDraft(task), steps })
+    },
+    [editTask],
+  )
+
   const handleMenuDelete = useCallback(
     (task: Task) => {
       if (confirm(`'${task.title}' 태스크를 삭제할까요?`)) void removeTask(task.id)
@@ -419,6 +437,7 @@ export default function App() {
                 setMenu({ task, x, y, stepId, msDate: date })
               }
               onMoveMilestone={handleMoveMilestone}
+              onToggleMilestone={handleToggleMilestone}
               onCreateNew={() => setEditing({ task: null })}
               onAddStep={handleAddStep}
             />
@@ -449,6 +468,16 @@ export default function App() {
           x={menu.x}
           y={menu.y}
           milestoneDate={menu.stepId ? menu.msDate : undefined}
+          milestones={
+            menu.stepId
+              ? menu.task.steps?.find((s) => s.id === menu.stepId)?.milestones
+              : undefined
+          }
+          onToggleMilestone={
+            menu.stepId
+              ? (msId) => handleToggleMilestone(menu.task, menu.stepId!, msId)
+              : undefined
+          }
           onAddMilestone={
             menu.stepId && menu.msDate
               ? () => {

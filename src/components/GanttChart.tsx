@@ -68,6 +68,7 @@ interface Props {
   onTaskContextMenu: (task: Task, x: number, y: number) => void
   onStepContextMenu: (task: Task, stepId: string, date: string, x: number, y: number) => void
   onMoveMilestone: (task: Task, stepId: string, milestoneId: string, date: string) => void
+  onToggleMilestone: (task: Task, stepId: string, milestoneId: string) => void
   onCreateNew: () => void
   onAddStep: (task: Task, title: string) => void
 }
@@ -107,6 +108,7 @@ export function GanttChart({
   onTaskContextMenu,
   onStepContextMenu,
   onMoveMilestone,
+  onToggleMilestone,
   onCreateNew,
   onAddStep,
 }: Props) {
@@ -741,12 +743,20 @@ export function GanttChart({
                                     const off = daysBetween(parseDate(eff.start), parseDate(effDate))
                                     const span = Math.max(1, daysBetween(parseDate(eff.start), parseDate(eff.due)) + 1)
                                     const leftPct = Math.min(100, Math.max(0, (off / span) * 100))
+                                    // 기한 지났는데 미완료면 경고(강한 레드)
+                                    const overdue = !m.done && daysBetween(today, parseDate(effDate)) < 0
+                                    const msColor = m.done ? '#22b455' : overdue ? '#ff2d2d' : lineColor
                                     return (
                                       <span
                                         key={m.id}
-                                        className={'lane-ms' + (isMsDragged ? ' dragging' : '')}
+                                        className={
+                                          'lane-ms' +
+                                          (isMsDragged ? ' dragging' : '') +
+                                          (overdue ? ' overdue' : '') +
+                                          (m.done ? ' done' : '')
+                                        }
                                         style={{ left: `${leftPct}%` }}
-                                        title={`${m.title} · ${shortLabel(parseDate(effDate))}`}
+                                        title={`${m.title} · ${shortLabel(parseDate(effDate))}${m.done ? ' · 완료' : overdue ? ' · ⚠ 기한 초과(미완료)' : ''}\n클릭: 완료 토글`}
                                         onPointerDown={(e) => {
                                           e.stopPropagation()
                                           setMsDrag({
@@ -761,12 +771,20 @@ export function GanttChart({
                                             moved: false,
                                           })
                                         }}
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          if (!msDrag?.moved) onToggleMilestone(t, s.id, m.id)
+                                        }}
                                       >
-                                        {m.title && <span className="lane-ms-label">{m.title}</span>}
+                                        {m.title && (
+                                          <span className="lane-ms-label" style={overdue ? { color: '#ff2d2d' } : undefined}>
+                                            {overdue && '⚠ '}
+                                            {m.title}
+                                          </span>
+                                        )}
                                         <span
                                           className="lane-ms-tri"
-                                          style={{ borderTopColor: lineColor }}
+                                          style={{ borderTopColor: msColor }}
                                         />
                                       </span>
                                     )

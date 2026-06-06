@@ -631,6 +631,19 @@ export function TaskEditPanel({
                         {(s.milestones ?? []).map((m) => (
                           <div className="ms-row" key={m.id}>
                             <input
+                              type="checkbox"
+                              className="ms-check"
+                              checked={!!m.done}
+                              onChange={(e) =>
+                                updateStep(s.id, {
+                                  milestones: (s.milestones ?? []).map((x) =>
+                                    x.id === m.id ? { ...x, done: e.target.checked } : x,
+                                  ),
+                                })
+                              }
+                              title="마일스톤 완료 확인"
+                            />
+                            <input
                               className="ms-title-input"
                               value={m.title}
                               placeholder="이정표 이름"

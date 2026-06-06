@@ -20,6 +20,7 @@ export interface Milestone {
   id: string
   title: string
   date: string // 'YYYY-MM-DD'
+  done?: boolean // 완료 여부 (날짜 지났는데 미완료면 경고 표시)
 }
 
 // 서브 태스크(과정). 각자 일정을 가지며 간트에서 레인 막대로 표시.

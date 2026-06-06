@@ -782,18 +782,7 @@ button {
   gap: 7px;
   overflow: visible; /* 호버 팝업이 라벨 밖으로 보이도록 */
 }
-/* 팝업이 떠 있는 라벨/행을 다른 sticky 라벨·막대 위로 */
-.lane-row:has(.sub-pill-wrap:hover) {
-  z-index: 40;
-}
-.lane-row:has(.sub-pill-wrap:hover) .gantt-label {
-  z-index: 40;
-}
-/* "서브태스크 N개" 그레이 알약 + 호버 팝업 */
-.sub-pill-wrap {
-  position: relative;
-  display: inline-flex;
-}
+/* "서브태스크 N개" 그레이 알약 (호버 시 fixed 칩 팝업) */
 .sub-pill {
   display: inline-flex;
   align-items: center;
@@ -805,10 +794,16 @@ button {
   padding: 2px 8px;
   border-radius: 999px;
   white-space: nowrap;
-  cursor: default;
+  cursor: pointer;
+}
+.sub-pill:hover {
+  color: var(--text);
 }
 .sub-pill-caret {
   color: var(--muted-2);
+}
+.sub-pill:hover .sub-pill-caret {
+  color: var(--text);
 }
 /* 담당자 알약 */
 .owner-pill {
@@ -821,9 +816,6 @@ button {
   border-radius: 999px;
   white-space: nowrap;
   margin-left: 5px;
-}
-.sub-pill-wrap:hover .sub-pill-caret {
-  color: var(--text);
 }
 /* 서브태스크 칩 팝업 — fixed (차트 overflow에 안 잘림) */
 .sub-pop-fixed {
@@ -847,20 +839,7 @@ button {
   color: var(--muted-2);
   white-space: nowrap;
 }
-/* 서브태스크 칩 목록 — 흐린 작은 알약 버튼(가로 wrap), 클릭 시 시작점 이동 */
-.sub-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-}
-.sub-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-width: 0;
-}
+/* 서브태스크 칩 (fixed 팝업 안 목록) */
 .sub-chip {
   display: inline-flex;
   align-items: center;
@@ -1739,6 +1718,13 @@ input[type='date'] {
   align-items: center;
   gap: 6px;
 }
+.ms-check {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  accent-color: #22b455;
+  cursor: pointer;
+}
 .ms-title-input {
   flex: 1;
   min-width: 0;
@@ -1787,12 +1773,6 @@ input[type='date'] {
 }
 .step-drag-handle:active {
   cursor: grabbing;
-}
-.step-card-check {
-  flex: 0 0 auto;
-  width: 15px;
-  height: 15px;
-  accent-color: var(--accent);
 }
 .step-card-title {
   flex: 1;
@@ -2190,6 +2170,26 @@ input[type='date'] {
   letter-spacing: 0.03em;
   color: var(--muted-2);
   padding: 2px 8px 4px;
+}
+/* 마일스톤 완료 체크 항목 */
+.ctx-ms-check {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--muted-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.ctx-ms-check.done {
+  background: #22b455;
+  border-color: #22b455;
+}
+.ctx-ms.done {
+  color: var(--muted);
+  text-decoration: line-through;
 }
 .ctx-status-row {
   display: grid;
