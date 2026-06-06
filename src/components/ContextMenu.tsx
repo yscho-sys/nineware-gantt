@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
-import { Pencil, Copy, Trash2, ExternalLink } from 'lucide-react'
+import { Pencil, Copy, Trash2, ExternalLink, MapPin } from 'lucide-react'
 import type { Task, TaskStatus } from '../types'
 import { STATUS_ORDER, STATUS_META } from '../types'
+import { parseDate, shortLabel } from '../lib/dates'
 
 interface Props {
   task: Task
   x: number
   y: number
+  milestoneDate?: string // 세부 막대 우클릭 시 그 날짜 (마일스톤 추가용)
+  onAddMilestone?: () => void
   onEdit: (task: Task) => void
   onDuplicate: (task: Task) => void
   onDelete: (task: Task) => void
@@ -14,11 +17,13 @@ interface Props {
   onClose: () => void
 }
 
-// 테스크 우클릭 컨텍스트 메뉴 — 상태 즉시 변경 + 편집/복제/삭제
+// 테스크 우클릭 컨텍스트 메뉴 — 마일스톤 추가 + 상태 변경 + 편집/복제/삭제
 export function ContextMenu({
   task,
   x,
   y,
+  milestoneDate,
+  onAddMilestone,
   onEdit,
   onDuplicate,
   onDelete,
@@ -50,6 +55,15 @@ export function ContextMenu({
       <div className="ctx-title" title={task.title}>
         {task.title}
       </div>
+
+      {onAddMilestone && milestoneDate && (
+        <>
+          <button className="ctx-item" onClick={onAddMilestone}>
+            <MapPin size={14} /> 마일스톤 추가 ({shortLabel(parseDate(milestoneDate))})
+          </button>
+          <div className="ctx-sep" />
+        </>
+      )}
 
       <button className="ctx-item" onClick={() => onEdit(task)}>
         <Pencil size={14} /> 편집 / 세부 단계

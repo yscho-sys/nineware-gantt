@@ -1,7 +1,18 @@
-import { useEffect, useState } from 'react'
-import { X, Trash2, ExternalLink, Plus, Save } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  X,
+  Trash2,
+  ExternalLink,
+  Plus,
+  Save,
+  MapPin,
+  GripVertical,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
 import type { Task, TaskDraft, TaskStatus, TaskStep, ProcessTemplate } from '../types'
-import { STATUS_ORDER, STATUS_META, progressFromSteps } from '../types'
+import { STATUS_ORDER, STATUS_META, progressFromSteps, stepProgress } from '../types'
+import { STEP_COLORS } from '../lib/palette'
 
 function newStepId(): string {
   return 'step-' + crypto.randomUUID()
@@ -49,6 +60,41 @@ export function TaskEditPanel({
   const [notes, setNotes] = useState('')
   const [steps, setSteps] = useState<TaskStep[]>([])
   const [saving, setSaving] = useState(false)
+  const [colorPickerFor, setColorPickerFor] = useState<string | null>(null) // 색 팝업 열린 step id
+  const [openSteps, setOpenSteps] = useState<Set<string>>(new Set()) // 펼친 카드 id
+  const dragId = useRef<string | null>(null) // 드래그 중인 step id
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+
+  function toggleOpen(id: string) {
+    setOpenSteps((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // 드래그로 순서 재정렬 — 드롭 대상 카드의 상/하 절반으로 삽입 위치 결정(위·아래 모두)
+  function handleDrop(targetId: string, e: React.DragEvent) {
+    const from = dragId.current
+    dragId.current = null
+    setDragOverId(null)
+    if (!from || from === targetId) return
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const after = e.clientY > rect.top + rect.height / 2 // 대상 카드 아래쪽에 드롭 → 뒤에 삽입
+    setSteps((prev) => {
+      const arr = [...prev]
+      const fromIdx = arr.findIndex((s) => s.id === from)
+      let toIdx = arr.findIndex((s) => s.id === targetId)
+      if (fromIdx < 0 || toIdx < 0) return prev
+      const [moved] = arr.splice(fromIdx, 1)
+      // 제거 후 대상 인덱스 재계산
+      toIdx = arr.findIndex((s) => s.id === targetId)
+      const insertIdx = after ? toIdx + 1 : toIdx
+      arr.splice(insertIdx, 0, moved)
+      return arr
+    })
+  }
 
   // 대상이 바뀌면 폼을 채운다
   useEffect(() => {
@@ -62,7 +108,16 @@ export function TaskEditPanel({
     setSlidesUrl(task?.slides_url ?? '')
     setOwner(task?.owner ?? '')
     setNotes(task?.notes ?? '')
-    setSteps(task?.steps ?? [])
+    // 세부 테스크 날짜가 비어 있으면 상위 테스크 일정으로 채워, 화면 표시값 = 저장될 값 이 되도록 한다.
+    const baseStart = task?.start_date ?? defaultStart
+    const baseDue = task?.due_date ?? defaultDue
+    setSteps(
+      (task?.steps ?? []).map((s) => ({
+        ...s,
+        start_date: s.start_date ?? baseStart,
+        due_date: s.due_date ?? baseDue,
+      })),
+    )
   }, [task, defaultStart, defaultDue, defaultTeam, teams])
 
   function loadTemplate(id: string) {
@@ -102,7 +157,16 @@ export function TaskEditPanel({
     setSteps((prev) => [...prev, { id: newStepId(), title: '', url: '', done: false, weight: 1 }])
   }
   function updateStep(id: string, patch: Partial<TaskStep>) {
-    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+    setSteps((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s
+        const next = { ...s, ...patch }
+        // 완료 체크 ↔ 진행률 동기화: 체크 시 100, 진행률 100 입력 시 완료
+        if (patch.done !== undefined) next.progress = patch.done ? 100 : 0
+        else if (patch.progress !== undefined) next.done = patch.progress >= 100
+        return next
+      }),
+    )
   }
   function removeStep(id: string) {
     setSteps((prev) => prev.filter((s) => s.id !== id))
@@ -118,7 +182,15 @@ export function TaskEditPanel({
   const hasSteps = steps.length > 0
   const derivedProgress = progressFromSteps(steps)
   const effectiveProgress = status === 'done' ? 100 : hasSteps ? derivedProgress : progress
-  const weightTotal = steps.reduce((s, x) => s + (x.weight && x.weight > 0 ? x.weight : 1), 0)
+
+  // 세부 테스크 일정의 최소 시작 ~ 최대 종료 (메인 기간 자동 계산용)
+  const autoStart = hasSteps
+    ? steps.map((s) => s.start_date || startDate).sort()[0]
+    : startDate
+  const autoDue = hasSteps
+    ? steps.map((s) => s.due_date || dueDate).sort().slice(-1)[0]
+    : dueDate
+  const autoRangeLabel = `${autoStart} ~ ${autoDue}`
 
   async function handleSave() {
     if (!canSave) return
@@ -130,8 +202,9 @@ export function TaskEditPanel({
         title: title.trim(),
         status,
         progress: effectiveProgress,
-        start_date: startDate,
-        due_date: dueDate,
+        // 세부 테스크가 있으면 메인 기간 = 세부 범위(자동). 없으면 입력값.
+        start_date: hasSteps ? autoStart : startDate,
+        due_date: hasSteps ? autoDue : dueDate,
         slides_url: slidesUrl.trim() || null,
         owner: owner.trim() || null,
         notes: notes.trim() || null,
@@ -242,6 +315,8 @@ export function TaskEditPanel({
               <div className="range-row">
                 <input
                   type="range"
+                  className="range-fill"
+                  style={{ '--fill': `${status === 'done' ? 100 : progress}%` } as React.CSSProperties}
                   min={0}
                   max={100}
                   step={5}
@@ -253,16 +328,37 @@ export function TaskEditPanel({
             )}
           </div>
 
-          <div className="row-2">
+          {/* 세부 테스크가 있으면 메인 일정은 세부 범위로 자동 계산되므로 입력란을 숨긴다.
+              (메인테스크는 '프로젝트 묶음'일 뿐 — 차트 막대는 세부 테스크 일정으로만 그려진다) */}
+          {hasSteps ? (
             <div className="field">
-              <label>시작일 *</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <label>기간</label>
+              <div className="auto-range-note">
+                세부 테스크 일정으로 자동 계산 ({autoRangeLabel})
+              </div>
             </div>
-            <div className="field">
-              <label>목표일 *</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          ) : (
+            <div className="row-2">
+              <div className="field">
+                <label>시작일 *</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                />
+              </div>
+              <div className="field">
+                <label>목표일 *</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="field">
             <label>구글 슬라이드 링크</label>
@@ -316,84 +412,235 @@ export function TaskEditPanel({
                   세부 테스크를 추가하고 구글 시트·슬라이드·문서 링크를 연결하세요.
                 </div>
               )}
-              {steps.map((s, i) => (
-                <div className="step-edit" key={s.id}>
-                  <input
-                    type="checkbox"
-                    checked={s.done}
-                    onChange={(e) => updateStep(s.id, { done: e.target.checked })}
-                    title="완료 표시"
-                  />
-                  <div className="step-edit-fields">
-                    <input
-                      className="step-title-input"
-                      value={s.title}
-                      onChange={(e) => updateStep(s.id, { title: e.target.value })}
-                      placeholder={`세부 테스크 ${i + 1} 이름`}
-                    />
-                    <div className="step-url-row">
-                      <input
-                        className="step-url-input"
-                        value={s.url}
-                        onChange={(e) => updateStep(s.id, { url: e.target.value })}
-                        placeholder="구글 워크스페이스 링크 (시트/슬라이드/문서)"
-                      />
+              {steps.map((s, i) => {
+                const isOpen = openSteps.has(s.id)
+                const sStart = s.start_date ?? startDate
+                const sDue = s.due_date ?? dueDate
+                return (
+                <div
+                  className={
+                    'step-card' +
+                    (isOpen ? ' open' : '') +
+                    (dragOverId === s.id ? ' drag-over' : '')
+                  }
+                  key={s.id}
+                  onDragOver={(e) => {
+                    if (dragId.current && dragId.current !== s.id) {
+                      e.preventDefault()
+                      setDragOverId(s.id)
+                    }
+                  }}
+                  onDragLeave={() => setDragOverId((d) => (d === s.id ? null : d))}
+                  onDrop={(e) => handleDrop(s.id, e)}
+                >
+                  {/* 헤더 — 항상 표시 (색·제목·날짜) */}
+                  <div className="step-card-head">
+                    <span
+                      className="step-drag-handle"
+                      draggable
+                      onDragStart={() => {
+                        dragId.current = s.id
+                      }}
+                      onDragEnd={() => {
+                        dragId.current = null
+                        setDragOverId(null)
+                      }}
+                      title="드래그로 순서 변경"
+                    >
+                      <GripVertical size={14} />
+                    </span>
+                    <div className="color-pick">
                       <button
-                        className="icon-btn"
                         type="button"
-                        disabled={!s.url.trim()}
-                        onClick={() => openStep(s.url)}
-                        title="링크 열기"
-                      >
-                        <ExternalLink size={15} />
-                      </button>
-                    </div>
-                    <div className="step-weight-row">
-                      <span className="step-weight-label">업무 비중</span>
-                      <input
-                        className="step-weight-input"
-                        type="number"
-                        min={0}
-                        value={s.weight ?? 1}
-                        onChange={(e) =>
-                          updateStep(s.id, { weight: Math.max(0, Number(e.target.value) || 0) })
-                        }
+                        className="color-pick-current"
+                        style={{ background: s.color ?? STEP_COLORS[0] }}
+                        onClick={() => setColorPickerFor((p) => (p === s.id ? null : s.id))}
+                        title="색상 선택"
                       />
-                      <span className="step-weight-pct">
-                        = {weightTotal > 0
-                          ? Math.round(((s.weight && s.weight > 0 ? s.weight : 1) / weightTotal) * 100)
-                          : 0}
-                        %
+                      {colorPickerFor === s.id && (
+                        <>
+                          <div className="color-pop-backdrop" onClick={() => setColorPickerFor(null)} />
+                          <div className="color-pop">
+                            {STEP_COLORS.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                className={'color-pop-swatch' + ((s.color ?? STEP_COLORS[0]) === c ? ' active' : '')}
+                                style={{ background: c }}
+                                onClick={() => {
+                                  updateStep(s.id, { color: c })
+                                  setColorPickerFor(null)
+                                }}
+                                title={c}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="step-card-check"
+                      checked={s.done}
+                      onChange={(e) => updateStep(s.id, { done: e.target.checked })}
+                      title="완료 표시"
+                    />
+                    {isOpen ? (
+                      <input
+                        className="step-title-input"
+                        value={s.title}
+                        onChange={(e) => updateStep(s.id, { title: e.target.value })}
+                        placeholder={`세부 테스크 ${i + 1} 이름`}
+                      />
+                    ) : (
+                      <span className={'step-card-title' + (s.done ? ' done' : '')} title={s.title}>
+                        {s.title || `세부 테스크 ${i + 1}`}
                       </span>
-                    </div>
-                    <div className="step-date-row">
-                      <input
-                        className="step-date-input"
-                        type="date"
-                        value={s.start_date ?? startDate}
-                        onChange={(e) => updateStep(s.id, { start_date: e.target.value })}
-                        title="세부 테스크 시작일"
-                      />
-                      <span className="step-date-sep">~</span>
-                      <input
-                        className="step-date-input"
-                        type="date"
-                        value={s.due_date ?? dueDate}
-                        onChange={(e) => updateStep(s.id, { due_date: e.target.value })}
-                        title="세부 테스크 목표일"
-                      />
-                    </div>
+                    )}
+                    {!isOpen && (
+                      <span className="step-card-dates">
+                        {sStart.slice(5)}~{sDue.slice(5)}
+                      </span>
+                    )}
+                    <button
+                      className="step-card-toggle"
+                      type="button"
+                      onClick={() => toggleOpen(s.id)}
+                      title={isOpen ? '접기' : '펼치기'}
+                    >
+                      {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                    </button>
+                    <button
+                      className="icon-btn danger"
+                      type="button"
+                      onClick={() => removeStep(s.id)}
+                      title="세부 테스크 삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                  <button
-                    className="icon-btn danger"
-                    type="button"
-                    onClick={() => removeStep(s.id)}
-                    title="세부 테스크 삭제"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+
+                  {/* 본문 — 펼침 시만 */}
+                  {isOpen && (
+                    <div className="step-card-body">
+                      <div className="step-url-row">
+                        <input
+                          className="step-url-input"
+                          value={s.url}
+                          onChange={(e) => updateStep(s.id, { url: e.target.value })}
+                          placeholder="구글 워크스페이스 링크 (시트/슬라이드/문서)"
+                        />
+                        <button
+                          className="icon-btn"
+                          type="button"
+                          disabled={!s.url.trim()}
+                          onClick={() => openStep(s.url)}
+                          title="링크 열기"
+                        >
+                          <ExternalLink size={15} />
+                        </button>
+                      </div>
+                      <div className="step-progress-row">
+                        <span className="step-weight-label">진행률 {stepProgress(s)}%</span>
+                        <input
+                          type="range"
+                          className="range-fill"
+                          style={{ '--fill': `${stepProgress(s)}%` } as React.CSSProperties}
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={stepProgress(s)}
+                          onChange={(e) => updateStep(s.id, { progress: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="step-date-row">
+                        <input
+                          className="step-date-input"
+                          type="date"
+                          value={sStart}
+                          onChange={(e) => updateStep(s.id, { start_date: e.target.value })}
+                          onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                          title="세부 테스크 시작일"
+                        />
+                        <span className="step-date-sep">~</span>
+                        <input
+                          className="step-date-input"
+                          type="date"
+                          value={sDue}
+                          onChange={(e) => updateStep(s.id, { due_date: e.target.value })}
+                          onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                          title="세부 테스크 목표일"
+                        />
+                      </div>
+
+                      {/* 마일스톤 목록 */}
+                      <div className="ms-section">
+                        <div className="ms-head">
+                          <span className="step-weight-label">
+                            <MapPin size={11} style={{ verticalAlign: '-1px' }} /> 마일스톤
+                          </span>
+                          <button
+                            type="button"
+                            className="add-step-btn"
+                            onClick={() =>
+                              updateStep(s.id, {
+                                milestones: [
+                                  ...(s.milestones ?? []),
+                                  { id: 'ms-' + crypto.randomUUID(), title: '', date: sStart },
+                                ],
+                              })
+                            }
+                          >
+                            <Plus size={12} /> 추가
+                          </button>
+                        </div>
+                        {(s.milestones ?? []).map((m) => (
+                          <div className="ms-row" key={m.id}>
+                            <input
+                              className="ms-title-input"
+                              value={m.title}
+                              placeholder="이정표 이름"
+                              onChange={(e) =>
+                                updateStep(s.id, {
+                                  milestones: (s.milestones ?? []).map((x) =>
+                                    x.id === m.id ? { ...x, title: e.target.value } : x,
+                                  ),
+                                })
+                              }
+                            />
+                            <input
+                              className="step-date-input ms-date-input"
+                              type="date"
+                              value={m.date}
+                              onChange={(e) =>
+                                updateStep(s.id, {
+                                  milestones: (s.milestones ?? []).map((x) =>
+                                    x.id === m.id ? { ...x, date: e.target.value } : x,
+                                  ),
+                                })
+                              }
+                              onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                            />
+                            <button
+                              className="icon-btn danger"
+                              type="button"
+                              onClick={() =>
+                                updateStep(s.id, {
+                                  milestones: (s.milestones ?? []).filter((x) => x.id !== m.id),
+                                })
+                              }
+                              title="마일스톤 삭제"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
           )}

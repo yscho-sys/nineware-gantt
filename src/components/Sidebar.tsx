@@ -91,11 +91,6 @@ export function Sidebar({
 }: Props) {
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <img src="/logo-wh.svg" alt="NINEWARE" className="brand-logo" />
-        <span className="brand-sub">업무진행 통합 대시보드</span>
-      </div>
-
       <button className="new-task-btn" onClick={onNewTask}>
         <Plus size={16} /> 새 테스크
       </button>
@@ -175,7 +170,6 @@ export function Sidebar({
       )}
 
       <div className="usage-panel">
-        <div className="usage-title">저장 용량</div>
         <UsageBar
           icon={<Database size={13} />}
           label="DB"

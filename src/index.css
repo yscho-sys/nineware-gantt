@@ -16,7 +16,7 @@
   --label-w: 248px;
   --day-w: 34px;
 
-  font-family: 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
@@ -73,6 +73,17 @@ button {
   padding: 16px 12px;
   gap: 6px;
   overflow: hidden;
+  transition: flex-basis 0.18s ease, width 0.18s ease, padding 0.18s ease, opacity 0.12s ease;
+}
+/* 좌측 패널 접힘: 화면을 넓게 쓰기 */
+.app.sidebar-collapsed .sidebar {
+  flex-basis: 0;
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right: none;
+  opacity: 0;
+  pointer-events: none;
 }
 .side-scroll {
   flex: 1 1 auto;
@@ -82,13 +93,6 @@ button {
   padding: 0 4px;
 }
 
-.brand {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 8px 8px 16px;
-}
 .brand-logo {
   width: 132px;
   max-width: 100%;
@@ -109,17 +113,19 @@ button {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  background: var(--accent);
+  background: transparent;
   color: #fff;
-  border: none;
+  border: 1px solid var(--accent);
   border-radius: 9px;
   padding: 11px;
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
 }
 .new-task-btn:hover {
-  background: #2a5fe0;
+  background: rgba(47, 107, 255, 0.15);
 }
 
 .side-section {
@@ -241,6 +247,41 @@ button {
 .main-header .spacer {
   flex: 1;
 }
+.sidebar-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sidebar-toggle:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+/* 헤더 우측 타이틀 */
+.header-brand {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.header-brand .brand-logo {
+  width: 116px;
+}
+.header-brand .brand-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted-2);
+  padding-left: 0;
+}
 .demo-badge {
   font-size: 12px;
   color: #f0b35a;
@@ -292,143 +333,40 @@ button {
 }
 
 /* ===================== 상단 위젯 현황판 ===================== */
+/* 상단 현황 — 텍스트 한 줄 + 1px 회색 트랙(진행분만 색). 시선 최소화. */
 .statusbar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 24px;
+  margin-bottom: 12px;
 }
-.widget {
-  background: #e7e8ea;
-  color: #16181f;
-  border-radius: 16px;
-  padding: 16px 18px;
+.stat {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 84px;
+  flex-direction: column;
+  gap: 5px;
 }
-.widget.alert {
-  background: #f1e3dd;
-}
-.widget-info {
-  flex: 0 0 auto;
-  min-width: 84px;
-}
-.widget-label {
-  font-size: 13px;
-  color: #5b5f66;
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-.widget-value {
-  font-size: 34px;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-}
-.widget-unit {
-  font-size: 15px;
-  font-weight: 700;
-  color: #6b6f76;
-  margin-left: 2px;
-}
-
-.tick-bar {
-  flex: 1;
+.stat-line {
   display: flex;
-  align-items: stretch;
-  gap: 3px;
-  height: 40px;
-}
-.tick-bar .tick {
-  flex: 1;
-  border-radius: 2px;
-}
-.widget-bar {
-  flex: 1;
-  height: 12px;
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.widget-bar > div {
-  height: 100%;
-  border-radius: 999px;
-}
-.widget-flag {
-  flex: 0 0 auto;
-  width: 14px;
-  align-self: stretch;
-  border-radius: 6px;
-}
-
-/* ===================== 프로젝트 요약 카드 ===================== */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.summary-card {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px 14px 18px;
-  overflow: hidden;
-}
-/* 좌측 일자 컬러 강조 (외곽 라운드 유지, 손톱 모양 제거) */
-.card-accent {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-}
-.proj-head {
-  display: flex;
-  align-items: center;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
 }
-.proj-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-}
-.proj-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.summary-card .value {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.mini-bar {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  margin-top: 8px;
-  overflow: hidden;
-}
-.mini-bar > div {
-  height: 100%;
-}
-.summary-card .sub {
-  font-size: 12px;
+.stat-label {
+  font-size: 11.5px;
   color: var(--muted);
-  margin-top: 8px;
 }
-.sub-overdue {
-  color: var(--danger);
-  font-weight: 600;
+.stat-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stat-track {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.stat-track > div {
+  height: 100%;
 }
 
 /* ===================== 간트 ===================== */
@@ -452,12 +390,19 @@ button {
   border-bottom: none;
 }
 
+/* 팀/메인테스크 그룹 래퍼 — 내부 행 전체 폭만큼 늘려 sticky 라벨이 끝까지 유효하도록 */
+.team-group,
+.task-group {
+  width: fit-content;
+  min-width: 100%;
+}
+
 .gantt-label {
   flex: 0 0 var(--label-w);
   width: var(--label-w);
   position: sticky;
   left: 0;
-  z-index: 6;
+  z-index: 8; /* 가로 스크롤 시 모든 막대(드래그 포함) 위에 고정 */
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -503,6 +448,33 @@ button {
   border-radius: 2px;
 }
 
+/* 메인테스크 눈 토글 (타임라인 표시/숨김) */
+.task-eye {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--muted-2);
+  padding: 2px;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+.gantt-row:hover .task-eye,
+.task-group-row:hover .task-eye {
+  opacity: 1;
+}
+.task-eye:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.task-eye.muted {
+  opacity: 1;
+  color: var(--muted);
+}
+
 /* 테스크 세부 단계 칩 */
 .step-chip {
   display: inline-flex;
@@ -537,6 +509,38 @@ button {
   color: var(--muted);
   background: var(--surface);
 }
+.gantt-head-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.zoom-toggle {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+}
+.zoom-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  width: 22px;
+  height: 20px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.zoom-btn:hover {
+  color: var(--text);
+}
+.zoom-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
 .day-tick {
   position: absolute;
   top: 0;
@@ -548,6 +552,7 @@ button {
   justify-content: center;
   gap: 1px;
   user-select: none;
+  overflow: hidden;
 }
 .day-tick .tick-dow {
   font-size: 9px;
@@ -711,58 +716,160 @@ button {
 .task-group-row .gantt-label {
   font-weight: 600;
 }
-.summary-bar {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 16px;
-  border-radius: 6px;
-  border: 1px solid;
-  background: rgba(255, 255, 255, 0.04);
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  cursor: pointer;
-  opacity: 0.85;
-}
-.summary-bar:hover {
-  opacity: 1;
-}
-.summary-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  opacity: 0.35;
-}
-.summary-text {
+/* ── 세부 테스크 레인 (항상 펼쳐진 한 줄 막대) ── */
+/* 막대(22px) 아래 정렬 + 위쪽에 마일스톤 마커 공간 확보 */
+.gantt-row.lane-row {
+  height: 48px;
+  border-bottom: none;
   position: relative;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text);
-  padding: 0 6px;
 }
-
-/* 세부 테스크 행 */
-.gantt-row.sub-row {
-  height: 40px;
+/* 메인테스크의 마지막 레인 아래에만 구분선 */
+.gantt-row.lane-row:has(+ :not(.lane-row)),
+.gantt-row.lane-row:last-child {
+  border-bottom: 1px solid var(--border-soft);
 }
 .sub-label {
-  padding-left: 30px;
+  padding-left: 36px;
   gap: 7px;
+  overflow: visible; /* 호버 팝업이 라벨 밖으로 보이도록 */
+}
+/* 팝업이 떠 있는 라벨/행을 다른 sticky 라벨·막대 위로 */
+.lane-row:has(.sub-pill-wrap:hover) {
+  z-index: 40;
+}
+.lane-row:has(.sub-pill-wrap:hover) .gantt-label {
+  z-index: 40;
+}
+/* "세부테스크 N개" 그레이 알약 + 호버 팝업 */
+.sub-pill-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.sub-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: default;
+}
+.sub-pill-caret {
+  color: var(--muted-2);
+}
+.sub-pill-wrap:hover .sub-pill-caret {
+  color: var(--text);
+}
+.sub-pop {
+  position: absolute;
+  top: 100%; /* 알약에 딱 붙여 호버 끊김 방지 */
+  left: 0;
+  z-index: 50; /* 모든 막대·라벨·행 위로 */
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 170px;
+  max-width: 260px;
+  margin-top: 4px;
+  padding: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+}
+/* 알약 위에 투명 브릿지를 깔아 알약→팝업 이동 시 호버 유지 */
+.sub-pop::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+.sub-pill-wrap:hover {
+  z-index: 50; /* 호버 시 래퍼 자체를 위로 올려 팝업이 가려지지 않게 */
+}
+.sub-pill-wrap:hover .sub-pop {
+  display: flex;
+}
+.lane-summary {
+  font-size: 10.5px;
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+/* 세부테스크 칩 목록 — 흐린 작은 알약 버튼(가로 wrap), 클릭 시 시작점 이동 */
+.sub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+.sub-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.sub-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  padding: 2px 7px 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.1s, border-color 0.1s;
+}
+.sub-chip:hover {
+  opacity: 1;
+  border-color: var(--chip-color, var(--accent));
+}
+.sub-chip-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--chip-color, var(--accent));
+}
+.sub-chip-name {
+  font-size: 10.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+/* 팝업 안 칩은 목록처럼 한 줄씩 꽉 차게 */
+.sub-pop .sub-chip {
+  width: 100%;
+  max-width: none;
+  opacity: 1;
+  justify-content: flex-start;
+}
+.sub-pop .sub-chip .sub-chip-name {
+  max-width: none;
 }
 .sub-check {
   flex: 0 0 auto;
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   border-radius: 4px;
-  border: 1.5px solid var(--muted-2);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   padding: 0;
+  cursor: pointer;
 }
 .sub-check.done {
   background: #1fb89a;
@@ -772,15 +879,135 @@ button {
   text-decoration: line-through;
   color: var(--muted-2);
 }
-.sub-row .task-bar.sub-bar {
-  top: 7px;
-  height: 26px;
+
+/* 세부 테스크 막대 — 고유색, 한 줄, 글자에 타이트하게 */
+.lane-bar {
+  position: absolute;
+  bottom: 4px;
+  height: 22px;
+  min-width: 40px;
+  cursor: grab;
+  z-index: 1;
+  background: var(--line-color, #2f6bff);
+  border-radius: 6px;
+  overflow: visible; /* 마일스톤 마커가 막대 밖(위)으로 보이도록 */
+  transition: filter 0.1s;
 }
-.sub-bar .bar-title {
-  font-size: 11px;
+.lane-bar:hover {
+  filter: brightness(1.12);
 }
-.sub-bar .bar-sub {
+.lane-bar.done {
+  opacity: 1;
+}
+/* 완료 = 검정 빗금(해치) 오버레이 (색은 선명하게 유지, 글자는 빗금 위에) */
+.lane-bar.done::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 1;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(80, 80, 80, 0.7) 0,
+    rgba(80, 80, 80, 0.7) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+.lane-bar.dragged {
+  z-index: 7;
+  filter: brightness(1.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* 진행도 채움 — 막대 내부에 살짝 진한 띠 */
+.lane-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 6px 0 0 6px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 마일스톤 마커 — 날짜 지점(0폭 기준점) 위에 삼각형, 그 위에 텍스트 */
+.lane-ms {
+  position: absolute;
+  bottom: 100%; /* 막대 윗변 */
+  width: 0;
+  z-index: 6;
+  cursor: grab;
+}
+.lane-ms.dragging {
+  z-index: 10;
+}
+/* 아래 향한 삼각형 — 날짜 지점 중앙, 막대 윗변에서 1px 띄움 */
+.lane-ms-tri {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--line-color, #2f6bff);
+}
+/* 제목 텍스트 — 삼각형 위, 막대와 동일 색상 */
+.lane-ms-label {
+  position: absolute;
+  bottom: 9px; /* 삼각형 윗변(8px)에서 1px 위 — 삼각형과 텍스트 1px 간격 */
+  left: 0;
+  transform: translateX(-50%);
   font-size: 10px;
+  font-weight: 700;
+  color: var(--line-color, #2f6bff);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 한 줄 정보 (막대 내부) */
+.lane-row-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 8px;
+  color: #16181f;
+  white-space: nowrap;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.lane-title {
+  flex: 0 1 auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #16181f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lane-meta {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.62);
+}
+.lane-link {
+  flex: 0 0 auto;
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.14);
+  border: none;
+  color: #16181f;
+  padding: 3px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.lane-link:hover {
+  background: rgba(0, 0, 0, 0.26);
 }
 
 /* 막대 하단 진행도 선 (트랙 + 채움) */
@@ -878,9 +1105,22 @@ button {
 }
 
 /* 맨 아래 새 테스크 추가 존 (마우스 오버 시 강조) */
-.gantt-add-zone {
+/* 하단 바 — 새 테스크 추가 + 차트 네비게이션 (가로 스크롤과 무관하게 좌측 고정) */
+.gantt-footer {
   position: sticky;
   left: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  border-top: 1px dashed var(--border);
+  /* 스크롤 뷰포트 폭에 고정 (타임라인 전체 폭으로 늘어나지 않도록) */
+  width: 0;
+  min-width: 100%;
+  box-sizing: border-box;
+  padding-right: 12px;
+}
+.gantt-add-zone {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -889,7 +1129,6 @@ button {
   color: var(--muted-2);
   font-size: 13px;
   font-weight: 600;
-  border-top: 1px dashed var(--border);
   cursor: pointer;
   user-select: none;
   opacity: 0.5;
@@ -899,6 +1138,30 @@ button {
   color: var(--accent);
   background: var(--surface-2);
   opacity: 1;
+}
+.gantt-nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gantt-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gantt-nav-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .empty-state {
@@ -992,7 +1255,7 @@ button {
   gap: 6px;
 }
 .field label {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -1000,8 +1263,8 @@ button {
 .field select,
 .field textarea {
   font-family: inherit;
-  font-size: 14px;
-  padding: 10px 11px;
+  font-size: 13px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--bg);
@@ -1245,16 +1508,115 @@ button {
   color: var(--muted-2);
   white-space: nowrap;
 }
+.auto-range-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 9px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+}
 
 /* 단계 비중 입력 행 */
-.step-weight-row {
+.step-weight-row,
+.step-progress-row,
+.step-color-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.step-progress-row input[type='range'] {
+  flex: 1;
+}
+
+/* 정확한 채움 슬라이더 — gradient(--fill)로 진행분 표시, thumb 작게 해 끝단 어긋남 제거 */
+.range-fill {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0,
+    var(--accent) var(--fill, 0%),
+    var(--surface-2) var(--fill, 0%),
+    var(--surface-2) 100%
+  );
+  cursor: pointer;
+}
+.range-fill::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+.range-fill::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+.range-fill:disabled {
+  opacity: 0.6;
+}
 .step-weight-label {
   font-size: 11.5px;
   color: var(--muted-2);
+  white-space: nowrap;
+}
+
+/* 색상 선택 — 현재 색칩 하나 + 클릭 시 팝업 */
+.color-pick {
+  position: relative;
+  display: inline-flex;
+}
+.color-pick-current {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  padding: 0;
+  cursor: pointer;
+}
+.color-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+.color-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 21;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
+}
+.color-pop-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.color-pop-swatch:hover {
+  transform: scale(1.12);
+}
+.color-pop-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px #fff;
 }
 .step-weight-input {
   width: 64px;
@@ -1280,6 +1642,10 @@ button {
   align-items: center;
   gap: 8px;
 }
+/* 날짜 입력 — 네이티브 달력 팝업을 다크로 (밝은 배경 방지) */
+input[type='date'] {
+  color-scheme: dark;
+}
 .step-date-input {
   flex: 1;
   font-family: inherit;
@@ -1297,34 +1663,124 @@ button {
 .step-date-sep {
   color: var(--muted-2);
 }
-.step-edit {
+
+/* 마일스톤 편집 목록 */
+.ms-section {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-soft);
+  margin-top: 2px;
+}
+.ms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ms-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ms-title-input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+}
+.ms-title-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.ms-date-input {
+  flex: 0 0 auto;
+  width: 140px;
+}
+/* ── 세부 테스크 카드 ── */
+.step-card {
   background: var(--bg);
   border: 1px solid var(--border-soft);
   border-radius: 9px;
-  padding: 9px 10px;
+  overflow: hidden;
 }
-.step-edit > input[type='checkbox'] {
-  margin-top: 9px;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-  flex: 0 0 auto;
+.step-card.drag-over {
+  border-top: 2px solid var(--accent);
 }
-.step-edit-fields {
+.step-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+}
+.step-card-head .step-title-input {
   flex: 1;
+  width: auto;
+}
+.step-drag-handle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--muted-2);
+  cursor: grab;
+}
+.step-drag-handle:active {
+  cursor: grabbing;
+}
+.step-card-check {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+.step-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.step-card-title.done {
+  text-decoration: line-through;
+  color: var(--muted-2);
+}
+.step-card-dates {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--muted-2);
+}
+.step-card-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.step-card-toggle:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.step-card-body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
+  padding: 0 9px 9px 9px;
 }
 .step-title-input,
 .step-url-input {
   font-family: inherit;
-  font-size: 13.5px;
-  padding: 7px 9px;
+  font-size: 12.5px;
+  padding: 6px 9px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface);
@@ -1353,12 +1809,15 @@ button {
 .side-item.link-item {
   text-decoration: none;
   color: var(--text);
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 .link-item .team-item-name {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 11px;
 }
 .link-item .eye {
   color: var(--muted-2);
@@ -1393,13 +1852,6 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.usage-title {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-2);
 }
 .usage-row {
   display: flex;

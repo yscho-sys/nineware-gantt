@@ -7,33 +7,32 @@ interface Props {
   today: Date
 }
 
-// 배터리 눈금 스타일 바 — fillPct 만큼 진한 눈금으로 채운다.
-function TickBar({ pct, accent }: { pct: number; accent: string }) {
-  const TICKS = 22
-  const filled = Math.round((pct / 100) * TICKS)
+// 한 줄 텍스트 + 1px 회색 트랙(진행분만 색상). 시선을 빼앗지 않는 미니멀 현황.
+function Stat({
+  label,
+  value,
+  pct,
+  accent,
+}: {
+  label: string
+  value: string
+  pct: number
+  accent: string
+}) {
   return (
-    <div className="tick-bar">
-      {Array.from({ length: TICKS }, (_, i) => (
-        <span
-          key={i}
-          className="tick"
-          style={{ background: i < filled ? accent : 'rgba(0,0,0,0.18)' }}
-        />
-      ))}
+    <div className="stat">
+      <div className="stat-line">
+        <span className="stat-label">{label}</span>
+        <span className="stat-value">{value}</span>
+      </div>
+      <div className="stat-track">
+        <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: accent }} />
+      </div>
     </div>
   )
 }
 
-// 가로 진행 바
-function MiniBar({ pct, accent }: { pct: number; accent: string }) {
-  return (
-    <div className="widget-bar">
-      <div style={{ width: `${pct}%`, background: accent }} />
-    </div>
-  )
-}
-
-// 상단 한 줄 위젯형 현황판 (첨부 위젯 레퍼런스 톤: 라이트 카드 + 볼드 숫자 + 오렌지 포인트)
+// 상단 미니멀 현황 — 텍스트 한 줄 + 1px 막대
 export function StatusBar({ tasks, today }: Props) {
   const stat = useMemo(() => {
     const total = tasks.length
@@ -47,54 +46,25 @@ export function StatusBar({ tasks, today }: Props) {
     return { total, avg, inProgress, done, donePct, overdue }
   }, [tasks, today])
 
-  const ORANGE = '#d4542a'
-  const DARK = '#1a1a1a'
+  const BLUE = '#5b8def'
+  const ORANGE = '#f0502a'
 
   return (
     <div className="statusbar">
-      <div className="widget">
-        <div className="widget-info">
-          <div className="widget-label">전체 진행률</div>
-          <div className="widget-value">
-            {stat.avg}
-            <span className="widget-unit">%</span>
-          </div>
-        </div>
-        <TickBar pct={stat.avg} accent={DARK} />
-      </div>
-
-      <div className="widget">
-        <div className="widget-info">
-          <div className="widget-label">진행중</div>
-          <div className="widget-value">
-            {stat.inProgress}
-            <span className="widget-unit">건</span>
-          </div>
-        </div>
-        <MiniBar pct={stat.total ? (stat.inProgress / stat.total) * 100 : 0} accent={DARK} />
-      </div>
-
-      <div className="widget">
-        <div className="widget-info">
-          <div className="widget-label">완료</div>
-          <div className="widget-value">
-            {stat.done}
-            <span className="widget-unit">/{stat.total}</span>
-          </div>
-        </div>
-        <MiniBar pct={stat.donePct} accent={DARK} />
-      </div>
-
-      <div className={'widget' + (stat.overdue > 0 ? ' alert' : '')}>
-        <div className="widget-info">
-          <div className="widget-label">일정 지연</div>
-          <div className="widget-value" style={{ color: stat.overdue > 0 ? ORANGE : undefined }}>
-            {stat.overdue}
-            <span className="widget-unit">건</span>
-          </div>
-        </div>
-        <div className="widget-flag" style={{ background: stat.overdue > 0 ? ORANGE : '#cfd2d6' }} />
-      </div>
+      <Stat label="전체 진행률" value={`${stat.avg}%`} pct={stat.avg} accent={BLUE} />
+      <Stat
+        label="진행중"
+        value={`${stat.inProgress}건`}
+        pct={stat.total ? (stat.inProgress / stat.total) * 100 : 0}
+        accent={BLUE}
+      />
+      <Stat label="완료" value={`${stat.done}/${stat.total}`} pct={stat.donePct} accent={BLUE} />
+      <Stat
+        label="일정 지연"
+        value={`${stat.overdue}건`}
+        pct={stat.overdue > 0 ? 100 : 0}
+        accent={ORANGE}
+      />
     </div>
   )
 }

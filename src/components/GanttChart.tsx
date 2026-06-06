@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, Link2, Plus, Check } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Link2,
+  Plus,
+  ExternalLink,
+  ChevronsLeft,
+  ChevronsRight,
+  CalendarClock,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
 import type { Task, TaskStep } from '../types'
-import { STATUS_META } from '../types'
+import { STATUS_META, stepProgress } from '../types'
+import { STEP_COLORS } from '../lib/palette'
+import { packLanes } from '../lib/lanes'
 import {
   parseDate,
   daysBetween,
@@ -11,9 +24,19 @@ import {
   isSameDay,
   weekdayLabel,
   rangeLabel,
+  shortLabel,
 } from '../lib/dates'
 
-const DAY_W = 34 // 하루 칸 너비(px)
+// 보기 단위별 하루 칸 너비(px) — 일(기본)/주/월
+type ZoomLevel = 'day' | 'week' | 'month'
+const ZOOM_DAY_W: Record<ZoomLevel, number> = { day: 34, week: 14, month: 6 }
+const ZOOM_ORDER: ZoomLevel[] = ['day', 'week', 'month'] // 일(기본) → 주 → 월
+const ZOOM_LABEL: Record<ZoomLevel, string> = { day: '일', week: '주', month: '월' }
+
+// 세부 테스크 고유색 — color 지정 시 그 값, 없으면 인덱스 기반 자동색
+function stepColor(s: TaskStep, index: number): string {
+  return s.color || STEP_COLORS[index % STEP_COLORS.length]
+}
 
 type DragMode = 'move' | 'start' | 'end'
 interface DragState {
@@ -35,13 +58,16 @@ interface Props {
   selectedId: string | null
   collapsed: Set<string>
   hidden: Set<string>
+  hiddenTasks: Set<string>
   colorOf: (team: string) => string
   onToggleTeam: (team: string) => void
+  onToggleHiddenTask: (taskId: string) => void
   onSelect: (task: Task) => void
   onReschedule: (task: Task, startISO: string, dueISO: string) => void
   onRescheduleStep: (task: Task, stepId: string, startISO: string, dueISO: string) => void
-  onToggleStep: (task: Task, stepId: string) => void
   onTaskContextMenu: (task: Task, x: number, y: number) => void
+  onStepContextMenu: (task: Task, stepId: string, date: string, x: number, y: number) => void
+  onMoveMilestone: (task: Task, stepId: string, milestoneId: string, date: string) => void
   onCreateNew: () => void
   onAddStep: (task: Task, title: string) => void
 }
@@ -70,16 +96,21 @@ export function GanttChart({
   selectedId,
   collapsed,
   hidden,
+  hiddenTasks,
   colorOf,
   onToggleTeam,
+  onToggleHiddenTask,
   onSelect,
   onReschedule,
   onRescheduleStep,
-  onToggleStep,
   onTaskContextMenu,
+  onStepContextMenu,
+  onMoveMilestone,
   onCreateNew,
   onAddStep,
 }: Props) {
+  const [zoom, setZoom] = useState<ZoomLevel>('day') // 보기 단위 (일/주/월)
+  const DAY_W = ZOOM_DAY_W[zoom] // 기존 DAY_W 참조를 줌에 따라 가변
   const totalDays = daysBetween(rangeStart, rangeEnd) + 1
   const timelineWidth = totalDays * DAY_W
 
@@ -87,6 +118,22 @@ export function GanttChart({
   const dragRef = useRef<DragState | null>(null)
   dragRef.current = drag
   const dragging = !!drag
+
+  // 마일스톤(점) 드래그 — 날짜 이동
+  interface MsDrag {
+    task: Task
+    stepId: string
+    msId: string
+    origDate: string
+    minDate: string
+    maxDate: string
+    startClientX: number
+    deltaDays: number
+    moved: boolean
+  }
+  const [msDrag, setMsDrag] = useState<MsDrag | null>(null)
+  const msDragRef = useRef<MsDrag | null>(null)
+  msDragRef.current = msDrag
 
   // 세부 테스크를 접은 상위 테스크 id
   const [closedTasks, setClosedTasks] = useState<Set<string>>(new Set())
@@ -101,6 +148,7 @@ export function GanttChart({
   // 행 인라인 세부 테스크 추가
   const [addingFor, setAddingFor] = useState<string | null>(null)
   const [addText, setAddText] = useState('')
+
 
   useEffect(() => {
     if (!dragging) return
@@ -136,6 +184,58 @@ export function GanttChart({
       window.removeEventListener('pointerup', onUp)
     }
   }, [dragging, tasks, onReschedule, onRescheduleStep, onSelect])
+
+  // 마일스톤 점 드래그
+  useEffect(() => {
+    if (!msDrag) return
+    function onMove(e: PointerEvent) {
+      const d = msDragRef.current
+      if (!d) return
+      const delta = Math.round((e.clientX - d.startClientX) / DAY_W)
+      setMsDrag((prev) =>
+        prev && delta !== prev.deltaDays
+          ? { ...prev, deltaDays: delta, moved: prev.moved || delta !== 0 }
+          : prev,
+      )
+    }
+    function onUp() {
+      const d = msDragRef.current
+      if (!d) return
+      if (d.moved) {
+        // 막대 기간(min~max) 안으로 클램프
+        let nd = addDays(parseDate(d.origDate), d.deltaDays)
+        if (nd < parseDate(d.minDate)) nd = parseDate(d.minDate)
+        if (nd > parseDate(d.maxDate)) nd = parseDate(d.maxDate)
+        onMoveMilestone(d.task, d.stepId, d.msId, toISODate(nd))
+      }
+      setMsDrag(null)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [msDrag, onMoveMilestone])
+
+  // 차트 가로 스크롤 네비게이션
+  function scrollToToday() {
+    const c = scrollRef.current
+    if (c) c.scrollTo({ left: Math.max(0, todayLeft - DAY_W * 5), behavior: 'smooth' })
+  }
+  // 특정 날짜의 막대 시작점으로 스크롤(세부테스크 칩 클릭)
+  function scrollToDate(dateISO: string) {
+    const c = scrollRef.current
+    if (!c) return
+    const left = daysBetween(rangeStart, parseDate(dateISO)) * DAY_W
+    c.scrollTo({ left: Math.max(0, left - DAY_W * 2), behavior: 'smooth' })
+  }
+  function scrollToStart() {
+    scrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
+  }
+  function scrollToEnd() {
+    scrollRef.current?.scrollTo({ left: timelineWidth, behavior: 'smooth' })
+  }
 
   function startDrag(e: React.PointerEvent, t: Task, mode: DragMode, step?: TaskStep) {
     e.stopPropagation()
@@ -182,6 +282,16 @@ export function GanttChart({
   const scrollRef = useRef<HTMLDivElement>(null)
   const panRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
   const [panning, setPanning] = useState(false)
+
+  // 데이터 범위가 바뀌면(저장/리로드 후) 과거로 가지 않고 오늘 기준으로 스크롤 맞춤.
+  // 오늘 칸이 타임라인 좌측에서 약 5일 안쪽에 오도록 배치.
+  useEffect(() => {
+    const c = scrollRef.current
+    if (!c || !todayVisible) return
+    const target = Math.max(0, todayLeft - DAY_W * 5)
+    c.scrollLeft = target
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeStart, todayLeft, todayVisible])
 
   function onGanttPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return
@@ -284,7 +394,21 @@ export function GanttChart({
     >
       {/* 헤더: 날짜 눈금 */}
       <div className="gantt-row gantt-head">
-        <div className="gantt-label">팀 / 테스크</div>
+        <div className="gantt-label gantt-head-label">
+          <span>팀 / 테스크</span>
+          <div className="zoom-toggle">
+            {ZOOM_ORDER.map((z) => (
+              <button
+                key={z}
+                className={'zoom-btn' + (zoom === z ? ' active' : '')}
+                onClick={() => setZoom(z)}
+                title={`${ZOOM_LABEL[z]} 단위 보기`}
+              >
+                {ZOOM_LABEL[z]}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="gantt-timeline" style={{ width: timelineWidth }}>
           {ticks.map(({ date, left }, i) => {
             const monthStart = date.getDate() === 1 || i === 0
@@ -312,7 +436,7 @@ export function GanttChart({
         const teamClosed = collapsed.has(group.team)
         const teamCol = colorOf(group.team)
         return (
-          <div key={group.team}>
+          <div className="team-group" key={group.team}>
             <div className="team-header" onClick={() => onToggleTeam(group.team)}>
               <div className="gantt-label">
                 <span className="label-bar" style={{ background: teamCol }} />
@@ -342,6 +466,7 @@ export function GanttChart({
                     : { start: t.start_date, due: t.due_date }
                   const { left, width } = geom(eff.start, eff.due)
                   const overdue = t.status !== 'done' && daysBetween(today, parseDate(eff.due)) < 0
+                  const soloHidden = hiddenTasks.has(t.id)
                   return (
                     <div className="gantt-row" key={t.id}>
                       <div className="gantt-label task-label">
@@ -351,6 +476,16 @@ export function GanttChart({
                           {t.title}
                         </span>
                         {overdue && <span className="overdue-flag">지연</span>}
+                        <button
+                          className={'task-eye' + (soloHidden ? ' muted' : '')}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onToggleHiddenTask(t.id)
+                          }}
+                          title={soloHidden ? '타임라인에 표시' : '타임라인에서 숨기기'}
+                        >
+                          {soloHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
                       </div>
                       <div
                         className="gantt-timeline"
@@ -367,46 +502,55 @@ export function GanttChart({
                       >
                         {shades}
                         {addControl(t)}
-                        <div
-                          className={'task-bar' + (selectedId === t.id ? ' selected' : '') + (isDragged ? ' dragged' : '')}
-                          style={{ left, width, background: meta.color + '2e' }}
-                          onPointerDown={(e) => startDrag(e, t, 'move')}
-                          onClick={(e) => e.stopPropagation()}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onTaskContextMenu(t, e.clientX, e.clientY)
-                          }}
-                          title={`${t.title} · ${meta.label} · ${t.progress}%`}
-                        >
-                          <span className="bar-accent" style={{ background: meta.color }} />
-                          <div className="bar-progress">
-                            <div className="bar-progress-fill" style={{ width: `${t.progress}%`, background: meta.color }} />
+                        {!soloHidden && (
+                          <div
+                            className={'task-bar' + (selectedId === t.id ? ' selected' : '') + (isDragged ? ' dragged' : '')}
+                            style={{ left, width, background: meta.color + '2e' }}
+                            onPointerDown={(e) => startDrag(e, t, 'move')}
+                            onClick={(e) => e.stopPropagation()}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              onTaskContextMenu(t, e.clientX, e.clientY)
+                            }}
+                            title={`${t.title} · ${meta.label} · ${t.progress}%`}
+                          >
+                            <span className="bar-accent" style={{ background: meta.color }} />
+                            <div className="bar-progress">
+                              <div className="bar-progress-fill" style={{ width: `${t.progress}%`, background: meta.color }} />
+                            </div>
+                            <span className="bar-handle left" onPointerDown={(e) => startDrag(e, t, 'start')} />
+                            <div className="bar-body">
+                              <span className="bar-title">{t.title}</span>
+                              <span className="bar-sub">
+                                {rangeLabel(eff.start, eff.due)} · {t.progress}%
+                              </span>
+                            </div>
+                            <span className="bar-handle right" onPointerDown={(e) => startDrag(e, t, 'end')} />
                           </div>
-                          <span className="bar-handle left" onPointerDown={(e) => startDrag(e, t, 'start')} />
-                          <div className="bar-body">
-                            <span className="bar-title">{t.title}</span>
-                            <span className="bar-sub">
-                              {rangeLabel(eff.start, eff.due)} · {t.progress}%
-                            </span>
-                          </div>
-                          <span className="bar-handle right" onPointerDown={(e) => startDrag(e, t, 'end')} />
-                        </div>
+                        )}
                       </div>
                     </div>
                   )
                 }
 
-                // ── 세부 테스크가 있는 테스크: 그룹 헤더 + 세부 막대 행들 ──
-                const taskClosed = closedTasks.has(t.id)
-                const starts = subs.map((s) => parseDate(subStart(s)).getTime())
-                const dues = subs.map((s) => parseDate(subDue(s)).getTime())
-                const sumStart = toISODate(new Date(Math.min(...starts)))
-                const sumDue = toISODate(new Date(Math.max(...dues)))
-                const sg = geom(sumStart, sumDue)
+                // ── 세부 테스크가 있는 테스크(메인테스크): 그룹 헤더 + 압축 레인 ──
+                // 메인테스크는 자기 막대를 그리지 않고 접기/펼치기 묶음 역할만 한다.
+                const taskHidden = hiddenTasks.has(t.id)
+                const taskClosed = closedTasks.has(t.id) || taskHidden
+                // 레인 패킹: 일정이 안 겹치는 세부 테스크끼리 같은 행에 모은다.
+                const { laneOf, laneCount } = packLanes(
+                  subs.map((s) => ({ start: subStart(s), due: subDue(s) })),
+                )
+                // 레인별 세부 테스크 묶음 (원본 인덱스 보존 → 고유색 계산용)
+                const lanes: { step: TaskStep; index: number }[][] = Array.from(
+                  { length: laneCount },
+                  () => [],
+                )
+                subs.forEach((s, i) => lanes[laneOf[i]].push({ step: s, index: i }))
                 return (
-                  <div key={t.id}>
-                    {/* 테스크(그룹) 헤더 행 */}
+                  <div className="task-group" key={t.id}>
+                    {/* 메인테스크(그룹) 헤더 행 — 타임라인엔 막대 없음 */}
                     <div className="gantt-row task-group-row">
                       <div className="gantt-label task-label" onClick={() => toggleTask(t.id)} style={{ cursor: 'pointer' }}>
                         <span className="nest-guide" style={{ background: teamCol }} />
@@ -415,10 +559,20 @@ export function GanttChart({
                         <span className="title" title={t.title}>
                           {t.title}
                         </span>
-                        <span className="step-chip" title={`세부 테스크 ${stepDone}/${subs.length}`}>
+                        <span className="step-chip" title={`전체 ${t.progress}% · 완료 ${stepDone}/${subs.length}`}>
                           <Link2 size={11} />
-                          {stepDone}/{subs.length}
+                          {t.progress}% · {stepDone}/{subs.length}
                         </span>
+                        <button
+                          className={'task-eye' + (taskHidden ? ' muted' : '')}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onToggleHiddenTask(t.id)
+                          }}
+                          title={taskHidden ? '타임라인에 표시' : '타임라인에서 숨기기'}
+                        >
+                          {taskHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
                       </div>
                       <div
                         className="gantt-timeline"
@@ -435,80 +589,156 @@ export function GanttChart({
                       >
                         {shades}
                         {addControl(t)}
-                        {/* 요약 막대 (세부 테스크 전체 범위) */}
-                        <div
-                          className="summary-bar"
-                          style={{ left: sg.left, width: sg.width, borderColor: meta.color }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onSelect(t)
-                          }}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onTaskContextMenu(t, e.clientX, e.clientY)
-                          }}
-                          title={`${t.title} · 전체 ${t.progress}%`}
-                        >
-                          <div className="summary-fill" style={{ width: `${t.progress}%`, background: meta.color }} />
-                          <span className="summary-text">{t.progress}%</span>
-                        </div>
                       </div>
                     </div>
 
-                    {/* 세부 테스크 막대 행들 */}
+                    {/* 세부 테스크 레인 행들 — 항상 펼쳐진 한 줄 막대 */}
                     {!taskClosed &&
-                      subs.map((s) => {
-                        const isDragged = drag?.id === t.id && drag.stepId === s.id
-                        const eff = isDragged
-                          ? previewDates(drag)
-                          : { start: subStart(s), due: subDue(s) }
-                        const { left, width } = geom(eff.start, eff.due)
-                        const subColor = s.done ? STATUS_META.done.color : meta.color
-                        return (
-                          <div className="gantt-row sub-row" key={s.id}>
-                            <div className="gantt-label sub-label">
-                              <span className="nest-guide" style={{ background: teamCol }} />
-                              <button
-                                className={'sub-check' + (s.done ? ' done' : '')}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onToggleStep(t, s.id)
-                                }}
-                                title={s.done ? '완료 해제' : '완료'}
-                              >
-                                {s.done && <Check size={11} />}
-                              </button>
-                              <span className={'title' + (s.done ? ' sub-done' : '')} title={s.title}>
-                                {s.title}
-                              </span>
-                            </div>
-                            <div className="gantt-timeline" style={{ width: timelineWidth }}>
-                              {shades}
-                              <div
-                                className={'task-bar sub-bar' + (isDragged ? ' dragged' : '')}
-                                style={{ left, width, background: subColor + '33' }}
-                                onPointerDown={(e) => startDrag(e, t, 'move', s)}
-                                onClick={(e) => e.stopPropagation()}
-                                onContextMenu={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  onTaskContextMenu(t, e.clientX, e.clientY)
-                                }}
-                                title={`${s.title} · ${rangeLabel(eff.start, eff.due)}`}
-                              >
-                                <span className="bar-accent" style={{ background: subColor }} />
-                                <span className="bar-handle left" onPointerDown={(e) => startDrag(e, t, 'start', s)} />
-                                <div className="bar-body">
-                                  <span className="bar-title">{s.title}</span>
-                                  <span className="bar-sub">{rangeLabel(eff.start, eff.due)}</span>
+                      lanes.map((lane, laneIdx) => (
+                        <div className="gantt-row lane-row" key={t.id + '-lane-' + laneIdx}>
+                          <div className="gantt-label sub-label">
+                            <span className="nest-guide" style={{ background: teamCol }} />
+                            {laneIdx === 0 && (
+                              <div className="sub-pill-wrap">
+                                <span className="sub-pill">
+                                  세부테스크 {subs.length}개
+                                  <ChevronDown size={11} className="sub-pill-caret" />
+                                </span>
+                                {/* 호버 시 칩 목록 팝업 */}
+                                <div className="sub-pop">
+                                  {subs.map((sub, si) => (
+                                    <button
+                                      key={sub.id}
+                                      className="sub-chip"
+                                      style={{ '--chip-color': stepColor(sub, si) } as React.CSSProperties}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        scrollToDate(subStart(sub))
+                                      }}
+                                      title={`${sub.title} — 시작점으로 이동`}
+                                    >
+                                      <span className="sub-chip-dot" />
+                                      <span className="sub-chip-name">{sub.title || `세부 ${si + 1}`}</span>
+                                    </button>
+                                  ))}
                                 </div>
-                                <span className="bar-handle right" onPointerDown={(e) => startDrag(e, t, 'end', s)} />
                               </div>
-                            </div>
+                            )}
                           </div>
-                        )
-                      })}
+                          <div className="gantt-timeline" style={{ width: timelineWidth }}>
+                            {shades}
+                            {lane.map(({ step: s, index }) => {
+                              const isDragged = drag?.id === t.id && drag.stepId === s.id
+                              const eff = isDragged
+                                ? previewDates(drag)
+                                : { start: subStart(s), due: subDue(s) }
+                              const { left, width } = geom(eff.start, eff.due)
+                              // 지정한 고유색을 항상 사용(완료는 색 대신 반투명+체크로 구분)
+                              const lineColor = stepColor(s, index)
+                              const pct = stepProgress(s)
+                              return (
+                                <div
+                                  className={'lane-bar' + (isDragged ? ' dragged' : '') + (s.done ? ' done' : '')}
+                                  key={s.id}
+                                  style={{ left, width, '--line-color': lineColor } as React.CSSProperties}
+                                  onPointerDown={(e) => startDrag(e, t, 'move', s)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    // 우클릭한 가로 위치 → 막대 기간 내 날짜로 환산(마일스톤 추가용)
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                    const offDays = Math.round((e.clientX - rect.left) / DAY_W)
+                                    let d = addDays(parseDate(eff.start), offDays)
+                                    if (d < parseDate(eff.start)) d = parseDate(eff.start)
+                                    if (d > parseDate(eff.due)) d = parseDate(eff.due)
+                                    onStepContextMenu(t, s.id, toISODate(d), e.clientX, e.clientY)
+                                  }}
+                                  title={`${s.title} · ${rangeLabel(eff.start, eff.due)} · ${pct}%`}
+                                >
+                                  {/* 진행도 채움 (막대 내부 띠) */}
+                                  <span className="lane-fill" style={{ width: `${pct}%` }} />
+                                  {/* 마일스톤 점들 (점 + 위 제목 텍스트, 드래그로 날짜 이동) */}
+                                  {(s.milestones ?? []).map((m) => {
+                                    // 드래그 중인 점은 미리보기 날짜로 위치 반영
+                                    const isMsDragged =
+                                      msDrag?.msId === m.id && msDrag.stepId === s.id
+                                    let effDate = m.date
+                                    if (isMsDragged && msDrag) {
+                                      let nd = addDays(parseDate(m.date), msDrag.deltaDays)
+                                      if (nd < parseDate(eff.start)) nd = parseDate(eff.start)
+                                      if (nd > parseDate(eff.due)) nd = parseDate(eff.due)
+                                      effDate = toISODate(nd)
+                                    }
+                                    const off = daysBetween(parseDate(eff.start), parseDate(effDate))
+                                    const span = Math.max(1, daysBetween(parseDate(eff.start), parseDate(eff.due)) + 1)
+                                    const leftPct = Math.min(100, Math.max(0, (off / span) * 100))
+                                    return (
+                                      <span
+                                        key={m.id}
+                                        className={'lane-ms' + (isMsDragged ? ' dragging' : '')}
+                                        style={{ left: `${leftPct}%` }}
+                                        title={`${m.title} · ${shortLabel(parseDate(effDate))}`}
+                                        onPointerDown={(e) => {
+                                          e.stopPropagation()
+                                          setMsDrag({
+                                            task: t,
+                                            stepId: s.id,
+                                            msId: m.id,
+                                            origDate: m.date,
+                                            minDate: eff.start,
+                                            maxDate: eff.due,
+                                            startClientX: e.clientX,
+                                            deltaDays: 0,
+                                            moved: false,
+                                          })
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {m.title && <span className="lane-ms-label">{m.title}</span>}
+                                        <span
+                                          className="lane-ms-tri"
+                                          style={{ borderTopColor: lineColor }}
+                                        />
+                                      </span>
+                                    )
+                                  })}
+                                  <span
+                                    className="bar-handle left"
+                                    onPointerDown={(e) => startDrag(e, t, 'start', s)}
+                                  />
+                                  {/* 한 줄 정보: 제목 · 기간/% · 링크 */}
+                                  <div className="lane-row-content">
+                                    <span className={'lane-title' + (s.done ? ' sub-done' : '')}>
+                                      {s.title}
+                                    </span>
+                                    <span className="lane-meta">
+                                      {rangeLabel(eff.start, eff.due)} · {pct}%
+                                    </span>
+                                    {s.url && (
+                                      <button
+                                        className="lane-link"
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          window.open(s.url, '_blank', 'noopener')
+                                        }}
+                                        title="링크 열기"
+                                      >
+                                        <ExternalLink size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <span
+                                    className="bar-handle right"
+                                    onPointerDown={(e) => startDrag(e, t, 'end', s)}
+                                  />
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 )
               })}
@@ -516,17 +746,30 @@ export function GanttChart({
         )
       })}
 
-      {/* 맨 아래 — 새 테스크 추가 */}
-      <div
-        className="gantt-add-zone"
-        onClick={onCreateNew}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          onCreateNew()
-        }}
-        title="여기를 눌러 새 테스크 추가"
-      >
-        <Plus size={15} /> 새 테스크 추가
+      {/* 맨 아래 — 새 테스크 추가 + 차트 네비게이션 */}
+      <div className="gantt-footer">
+        <div
+          className="gantt-add-zone"
+          onClick={onCreateNew}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            onCreateNew()
+          }}
+          title="여기를 눌러 새 테스크 추가"
+        >
+          <Plus size={15} /> 새 테스크 추가
+        </div>
+        <div className="gantt-nav">
+          <button className="gantt-nav-btn" onClick={scrollToStart} title="태스크 처음으로">
+            <ChevronsLeft size={15} /> 처음
+          </button>
+          <button className="gantt-nav-btn" onClick={scrollToToday} title="오늘로 이동">
+            <CalendarClock size={15} /> 오늘
+          </button>
+          <button className="gantt-nav-btn" onClick={scrollToEnd} title="태스크 끝으로 이동">
+            끝 <ChevronsRight size={15} />
+          </button>
+        </div>
       </div>
     </div>
   )

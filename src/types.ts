@@ -15,25 +15,41 @@ export const STATUS_META: Record<
 
 export const STATUS_ORDER: TaskStatus[] = ['planned', 'in_progress', 'done', 'hold']
 
-// 세부 테스크(과정). 각자 일정을 가지며 간트에서 별도 막대 행으로 표시.
+// 마일스톤(키스톤) — 세부 테스크 기간 안의 중간 이정표. 막대 위 점으로 표시.
+export interface Milestone {
+  id: string
+  title: string
+  date: string // 'YYYY-MM-DD'
+}
+
+// 세부 테스크(과정). 각자 일정을 가지며 간트에서 레인 막대로 표시.
 export interface TaskStep {
   id: string
   title: string // 세부 테스크명
   url: string // 구글 워크스페이스 링크 (시트/슬라이드/문서 등)
   done: boolean // 완료 여부
+  progress?: number // 진행률 0~100. 미지정 시 done ? 100 : 0 으로 폴백
+  color?: string // 세부 테스크 고유색. 미지정 시 간트에서 인덱스 기반 자동색
   weight?: number // 업무 비중 (상대값) — 전체 진행률 계산에 사용. 미지정 시 1(균등)
   start_date?: string // 'YYYY-MM-DD' (미지정 시 상위 테스크 일정 사용)
   due_date?: string // 'YYYY-MM-DD'
+  milestones?: Milestone[] // 기간 내 중간 이정표(점)
 }
 
-// 세부 단계 기준 진행률(%) — 완료된 단계의 비중 합 / 전체 비중 합.
+// 세부 테스크 진행률(%) — progress 우선, 없으면 done 기준 폴백(하위호환).
+export function stepProgress(s: TaskStep): number {
+  if (s.progress != null) return s.progress
+  return s.done ? 100 : 0
+}
+
+// 세부 단계 기준 전체 진행률(%) — 각 단계 진행률 × 비중의 가중평균.
 // 비중 미지정(또는 0)이면 1로 간주해 균등 분배.
 export function progressFromSteps(steps: TaskStep[]): number {
   if (!steps || steps.length === 0) return 0
   const w = (s: TaskStep) => (s.weight && s.weight > 0 ? s.weight : 1)
   const total = steps.reduce((sum, s) => sum + w(s), 0)
   if (total <= 0) return 0
-  const done = steps.reduce((sum, s) => sum + (s.done ? w(s) : 0), 0)
+  const done = steps.reduce((sum, s) => sum + (stepProgress(s) / 100) * w(s), 0)
   return Math.round((done / total) * 100)
 }
 

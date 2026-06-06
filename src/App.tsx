@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useTasks } from './lib/useTasks'
 import { useTeams } from './lib/useTeams'
 import { Sidebar } from './components/Sidebar'
 import type { ViewMode } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
-import { ProjectSummary } from './components/ProjectSummary'
 import { GanttChart } from './components/GanttChart'
 import { BoardView } from './components/BoardView'
 import { ListView } from './components/ListView'
@@ -39,13 +39,21 @@ export default function App() {
   const { links, addLink, updateLink, removeLink, reorderLinks } = useLinks()
 
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [menu, setMenu] = useState<{ task: Task; x: number; y: number } | null>(null)
+  const [menu, setMenu] = useState<{
+    task: Task
+    x: number
+    y: number
+    stepId?: string // 세부 테스크 막대 우클릭 시
+    msDate?: string // 그 막대에서 우클릭한 위치의 날짜(마일스톤 추가용)
+  } | null>(null)
   const [showTeams, setShowTeams] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set()) // 간트 내 접기
-  const [hidden, setHidden] = useState<Set<string>>(new Set()) // 사이드바 눈: 타임라인에서 숨김
+  const [hidden, setHidden] = useState<Set<string>>(new Set()) // 사이드바 눈: 팀 단위 타임라인 숨김
+  const [hiddenTasks, setHiddenTasks] = useState<Set<string>>(new Set()) // 메인테스크 단위 숨김
   const [view, setView] = useState<ViewMode>('timeline')
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [sidebarOpen, setSidebarOpen] = useState(true) // 좌측 패널 여닫기
 
   const today = useMemo(() => {
     const n = new Date()
@@ -69,6 +77,18 @@ export default function App() {
         const next = new Set(prev)
         if (next.has(team)) next.delete(team)
         else next.add(team)
+        return next
+      }),
+    [],
+  )
+
+  // 메인테스크 단위 타임라인 숨김 토글
+  const toggleHiddenTask = useCallback(
+    (taskId: string) =>
+      setHiddenTasks((prev) => {
+        const next = new Set(prev)
+        if (next.has(taskId)) next.delete(taskId)
+        else next.add(taskId)
         return next
       }),
     [],
@@ -192,17 +212,34 @@ export default function App() {
     [editTask],
   )
 
-  // 세부 테스크 완료 토글 → 진행률 재계산
-  const handleToggleStep = useCallback(
-    (task: Task, stepId: string) => {
+  // 세부 테스크에 마일스톤(점) 추가 — 지정 날짜에 새 이정표
+  const handleAddMilestone = useCallback(
+    (task: Task, stepId: string, date: string) => {
+      const title = prompt('마일스톤 이름', '')?.trim()
+      if (!title) return
+      const ms = { id: 'ms-' + crypto.randomUUID(), title, date }
       const steps = (task.steps ?? []).map((s) =>
-        s.id === stepId ? { ...s, done: !s.done } : s,
+        s.id === stepId ? { ...s, milestones: [...(s.milestones ?? []), ms] } : s,
       )
-      void editTask(task.id, {
-        ...taskToDraft(task),
-        steps,
-        progress: task.status === 'done' ? 100 : progressFromSteps(steps),
-      })
+      void editTask(task.id, { ...taskToDraft(task), steps })
+    },
+    [editTask],
+  )
+
+  // 마일스톤 날짜 이동(점 드래그)
+  const handleMoveMilestone = useCallback(
+    (task: Task, stepId: string, milestoneId: string, date: string) => {
+      const steps = (task.steps ?? []).map((s) =>
+        s.id === stepId
+          ? {
+              ...s,
+              milestones: (s.milestones ?? []).map((m) =>
+                m.id === milestoneId ? { ...m, date } : m,
+              ),
+            }
+          : s,
+      )
+      void editTask(task.id, { ...taskToDraft(task), steps })
     },
     [editTask],
   )
@@ -226,7 +263,7 @@ export default function App() {
   const listTasks = filteredTasks.filter((t) => !hidden.has(t.team)) // 목록: 상태 필터 반영
 
   return (
-    <div className="app">
+    <div className={'app' + (sidebarOpen ? '' : ' sidebar-collapsed')}>
       <Sidebar
         teams={teams}
         taskCounts={taskCounts}
@@ -244,6 +281,18 @@ export default function App() {
 
       <main className="main">
         <header className="main-header">
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? '좌측 패널 접기' : '좌측 패널 펼치기'}
+            aria-label={sidebarOpen ? '좌측 패널 접기' : '좌측 패널 펼치기'}
+          >
+            {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+          </button>
+          <div className="header-brand">
+            <img src="/logo-wh.svg" alt="NINEWARE" className="brand-logo" />
+            <span className="brand-sub">업무진행 통합 대시보드</span>
+          </div>
           <div className="spacer" />
           {view !== 'board' && (
             <div className="filter-chips">
@@ -266,8 +315,6 @@ export default function App() {
           )}
 
           <StatusBar tasks={tasks} today={today} />
-
-          <ProjectSummary tasks={tasks} today={today} />
 
           {loading ? (
             <div className="empty-state">불러오는 중…</div>
@@ -304,13 +351,18 @@ export default function App() {
               selectedId={editing?.task?.id ?? null}
               collapsed={collapsed}
               hidden={hidden}
+              hiddenTasks={hiddenTasks}
               colorOf={colorOf}
               onToggleTeam={toggleTeam}
+              onToggleHiddenTask={toggleHiddenTask}
               onSelect={(task) => setEditing({ task })}
               onReschedule={handleReschedule}
               onRescheduleStep={handleRescheduleStep}
-              onToggleStep={handleToggleStep}
               onTaskContextMenu={(task, x, y) => setMenu({ task, x, y })}
+              onStepContextMenu={(task, stepId, date, x, y) =>
+                setMenu({ task, x, y, stepId, msDate: date })
+              }
+              onMoveMilestone={handleMoveMilestone}
               onCreateNew={() => setEditing({ task: null })}
               onAddStep={handleAddStep}
             />
@@ -340,6 +392,15 @@ export default function App() {
           task={menu.task}
           x={menu.x}
           y={menu.y}
+          milestoneDate={menu.stepId ? menu.msDate : undefined}
+          onAddMilestone={
+            menu.stepId && menu.msDate
+              ? () => {
+                  handleAddMilestone(menu.task, menu.stepId!, menu.msDate!)
+                  setMenu(null)
+                }
+              : undefined
+          }
           onEdit={(task) => {
             setEditing({ task })
             setMenu(null)

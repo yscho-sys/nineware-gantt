@@ -42,3 +42,15 @@ export const SELECTABLE_COLORS = [
   '#f0a23a', // amber
   '#f0502a', // orange
 ]
+
+// 세부 테스크 색 — 서로 또렷하게 구별되는 색만 추린 세트(색상환 고르게 분포)
+export const STEP_COLORS = [
+  '#2f6bff', // 파랑
+  '#1fb89a', // 청록
+  '#f0a23a', // 주황
+  '#e2548a', // 핑크
+  '#8b7ff0', // 보라
+  '#3ad0c0', // 시안
+  '#f0502a', // 빨강
+  '#7d8694', // 그레이
+]
