@@ -13,7 +13,7 @@
 
   --row-h: 52px;
   --head-h: 46px;
-  --label-w: 248px;
+  --label-w: 272px;
   --day-w: 34px;
 
   font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
@@ -510,15 +510,15 @@ button {
 .step-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
   flex: 0 0 auto;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--muted);
   background: var(--bg);
   border: 1px solid var(--border);
   padding: 1px 6px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 .gantt-timeline {
@@ -809,6 +809,18 @@ button {
 }
 .sub-pill-caret {
   color: var(--muted-2);
+}
+/* 담당자 알약 */
+.owner-pill {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  margin-left: 5px;
 }
 .sub-pill-wrap:hover .sub-pill-caret {
   color: var(--text);

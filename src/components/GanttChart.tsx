@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
-  Link2,
   Plus,
   ExternalLink,
   ChevronsLeft,
@@ -528,7 +527,7 @@ export function GanttChart({
                         }}
                       >
                         <span className="nest-guide" style={{ background: teamCol }} />
-                        <span className="label-bar" style={{ background: meta.color }} />
+                        <span className="label-bar" style={{ background: t.color ?? meta.color }} />
                         <span className="title" title={t.title}>
                           {t.title}
                         </span>
@@ -638,12 +637,11 @@ export function GanttChart({
                       >
                         <span className="nest-guide" style={{ background: teamCol }} />
                         {taskClosed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                        <span className="label-bar" style={{ background: meta.color }} />
+                        <span className="label-bar" style={{ background: t.color ?? meta.color }} />
                         <span className="title" title={t.title}>
                           {t.title}
                         </span>
                         <span className="step-chip" title={`전체 ${t.progress}% · 완료 ${stepDone}/${subs.length}`}>
-                          <Link2 size={11} />
                           {t.progress}% · {stepDone}/{subs.length}
                         </span>
                         <button
@@ -682,14 +680,17 @@ export function GanttChart({
                           <div className="gantt-label sub-label">
                             <span className="nest-guide" style={{ background: teamCol }} />
                             {laneIdx === 0 && (
-                              <span
-                                className="sub-pill"
-                                onPointerEnter={(e) => openSubPop(e, t, subs)}
-                                onPointerLeave={closeSubPop}
-                              >
-                                서브태스크 {subs.length}개
-                                <ChevronDown size={11} className="sub-pill-caret" />
-                              </span>
+                              <>
+                                <span
+                                  className="sub-pill"
+                                  onPointerEnter={(e) => openSubPop(e, t, subs)}
+                                  onPointerLeave={closeSubPop}
+                                >
+                                  서브태스크 {subs.length}개
+                                  <ChevronDown size={11} className="sub-pill-caret" />
+                                </span>
+                                {t.owner && <span className="owner-pill">{t.owner}</span>}
+                              </>
                             )}
                           </div>
                           <div className="gantt-timeline" style={{ width: timelineWidth }}>

@@ -14,12 +14,16 @@ create table if not exists public.tasks (
   slides_url  text,
   owner       text,
   notes       text,
-  -- 세부 단계: [{ id, title, url, done }] 형태의 JSON 배열
+  color       text,  -- 메인태스크 좌측 컬러 바 색 (미지정 시 상태색)
+  -- 세부 단계: [{ id, title, url, done, progress, color, milestones }] 형태의 JSON 배열
   steps       jsonb not null default '[]'::jsonb,
   sort_order  int  not null default 0,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- 기존 테이블에 color 컬럼이 없으면 추가 (마이그레이션)
+alter table public.tasks add column if not exists color text;
 
 -- updated_at 자동 갱신
 create or replace function public.set_updated_at()

@@ -66,6 +66,7 @@ export interface Task {
   slides_url: string | null // 대표 구글 슬라이드 링크
   owner: string | null // 담당자 (선택)
   notes: string | null // 메모 (선택)
+  color?: string // 메인태스크 좌측 컬러 바 색 (미지정 시 상태색)
   steps: TaskStep[] // 세부 단계 목록
   sort_order: number
   created_at?: string

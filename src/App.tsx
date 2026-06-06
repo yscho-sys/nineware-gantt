@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useTasks } from './lib/useTasks'
 import { useTeams } from './lib/useTeams'
@@ -133,6 +134,17 @@ export default function App() {
     const m: Record<string, number> = {}
     for (const t of tasks) m[t.team] = (m[t.team] ?? 0) + 1
     return m
+  }, [tasks])
+
+  // 좌측 라벨 칸 폭을 가장 긴 태스크/팀명에 맞춰 자동 계산 (한글 기준 글자폭 추정)
+  const labelWidth = useMemo(() => {
+    let maxLen = 0
+    for (const t of tasks) {
+      maxLen = Math.max(maxLen, t.title.length, t.team.length)
+    }
+    // 제목 글자수 × 한글폭(13.5) + 들여쓰기·칩·아이콘 고정 여백(150)
+    const w = Math.round(maxLen * 13.5 + 150)
+    return Math.min(440, Math.max(220, w)) // 220~440px 사이로 클램프
   }, [tasks])
 
   async function handleSave(draft: TaskDraft) {
@@ -288,7 +300,10 @@ export default function App() {
   const listTasks = filteredTasks.filter((t) => !hidden.has(t.team)) // 목록: 상태 필터 반영
 
   return (
-    <div className={'app' + (sidebarOpen ? '' : ' sidebar-collapsed')}>
+    <div
+      className={'app' + (sidebarOpen ? '' : ' sidebar-collapsed')}
+      style={{ '--label-w': `${labelWidth}px` } as CSSProperties}
+    >
       <Sidebar
         teams={teams}
         taskCounts={taskCounts}

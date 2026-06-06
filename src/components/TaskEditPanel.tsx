@@ -64,8 +64,10 @@ export function TaskEditPanel({
   const [slidesUrl, setSlidesUrl] = useState('')
   const [owner, setOwner] = useState('')
   const [notes, setNotes] = useState('')
+  const [color, setColor] = useState<string>('') // 메인태스크 컬러 바 색
   const [steps, setSteps] = useState<TaskStep[]>([])
   const [saving, setSaving] = useState(false)
+  const [mainColorOpen, setMainColorOpen] = useState(false) // 메인 색 팝업
   const [colorPickerFor, setColorPickerFor] = useState<string | null>(null) // 색 팝업 열린 step id
   const [openSteps, setOpenSteps] = useState<Set<string>>(new Set()) // 펼친 카드 id
   const dragId = useRef<string | null>(null) // 드래그 중인 step id
@@ -114,6 +116,7 @@ export function TaskEditPanel({
     setSlidesUrl(task?.slides_url ?? '')
     setOwner(task?.owner ?? '')
     setNotes(task?.notes ?? '')
+    setColor(task?.color ?? '')
     // 서브 태스크 날짜가 비어 있으면 상위 태스크 일정으로 채워, 화면 표시값 = 저장될 값 이 되도록 한다.
     const baseStart = task?.start_date ?? defaultStart
     const baseDue = task?.due_date ?? defaultDue
@@ -217,6 +220,7 @@ export function TaskEditPanel({
         slides_url: slidesUrl.trim() || null,
         owner: owner.trim() || null,
         notes: notes.trim() || null,
+        color: color || undefined,
         steps: steps
           .filter((s) => s.title.trim() || s.url.trim())
           .map((s) => ({ ...s, title: s.title.trim(), url: s.url.trim() })),
@@ -308,6 +312,39 @@ export function TaskEditPanel({
             <div className="field">
               <label>담당자</label>
               <input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="(선택)" />
+            </div>
+          </div>
+
+          <div className="field">
+            <label>태스크 색상</label>
+            <div className="color-pick">
+              <button
+                type="button"
+                className="color-pick-current"
+                style={{ background: color || STATUS_META[status].color }}
+                onClick={() => setMainColorOpen((v) => !v)}
+                title="태스크 색상 선택"
+              />
+              {mainColorOpen && (
+                <>
+                  <div className="color-pop-backdrop" onClick={() => setMainColorOpen(false)} />
+                  <div className="color-pop">
+                    {STEP_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={'color-pop-swatch' + (color === c ? ' active' : '')}
+                        style={{ background: c }}
+                        onClick={() => {
+                          setColor(c)
+                          setMainColorOpen(false)
+                        }}
+                        title={c}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
