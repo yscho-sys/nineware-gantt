@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured, TASKS_TABLE } from './supabase'
 import { SAMPLE_TASKS } from './sampleData'
 import type { Task, TaskDraft } from '../types'
@@ -48,12 +48,15 @@ export function useTasks(): UseTasksResult {
 
   const demoMode = !isSupabaseConfigured
 
+  // 첫 로드만 스피너 표시 — 이후 편집/드래그 재로드는 조용히 갱신(차트 리마운트 방지)
+  const loadedOnce = useRef(false)
   const reload = useCallback(async () => {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     setError(null)
     if (demoMode) {
       setTasks(loadDemoTasks())
       setLoading(false)
+      loadedOnce.current = true
       return
     }
     const { data, error } = await supabase!
@@ -68,6 +71,7 @@ export function useTasks(): UseTasksResult {
       setTasks((data ?? []) as Task[])
     }
     setLoading(false)
+    loadedOnce.current = true
   }, [demoMode])
 
   useEffect(() => {

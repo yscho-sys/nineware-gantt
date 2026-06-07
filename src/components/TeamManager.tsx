@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { X, Plus, Trash2, Check, Pencil } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { X, Plus, Trash2, Check, Pencil, GripVertical } from 'lucide-react'
 import { SELECTABLE_COLORS } from '../lib/palette'
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   onRename: (oldName: string, newName: string) => void
   onRemove: (name: string) => void
   onSetColor: (team: string, color: string) => void
+  onReorder: (fromName: string, toName: string) => void
   onClose: () => void
 }
 
@@ -21,12 +22,15 @@ export function TeamManager({
   onRename,
   onRemove,
   onSetColor,
+  onReorder,
   onClose,
 }: Props) {
   const [newName, setNewName] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [colorOpen, setColorOpen] = useState<string | null>(null)
+  const dragTeam = useRef<string | null>(null)
+  const [dragOver, setDragOver] = useState<string | null>(null)
 
   function startEdit(team: string) {
     setEditing(team)
@@ -84,8 +88,37 @@ export function TeamManager({
 
           <div className="team-list">
             {teams.map((team) => (
-              <div className="team-row-wrap" key={team}>
+              <div
+                className={'team-row-wrap' + (dragOver === team ? ' drag-over' : '')}
+                key={team}
+                onDragOver={(e) => {
+                  if (dragTeam.current && dragTeam.current !== team) {
+                    e.preventDefault()
+                    setDragOver(team)
+                  }
+                }}
+                onDragLeave={() => setDragOver((d) => (d === team ? null : d))}
+                onDrop={() => {
+                  if (dragTeam.current) onReorder(dragTeam.current, team)
+                  dragTeam.current = null
+                  setDragOver(null)
+                }}
+              >
                 <div className="team-row">
+                  <span
+                    className="team-drag-handle"
+                    draggable
+                    onDragStart={() => {
+                      dragTeam.current = team
+                    }}
+                    onDragEnd={() => {
+                      dragTeam.current = null
+                      setDragOver(null)
+                    }}
+                    title="드래그로 순서 변경"
+                  >
+                    <GripVertical size={15} />
+                  </span>
                   <button
                     className="team-color-btn"
                     style={{ background: colorOf(team) }}

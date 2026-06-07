@@ -43,6 +43,7 @@ export interface UseTeamsResult {
   renameTeam: (oldName: string, newName: string) => void
   removeTeam: (name: string) => void
   setTeamColor: (team: string, color: string) => void
+  reorderTeams: (fromName: string, toName: string) => void
 }
 
 // 팀 목록 + 팀별 색을 localStorage 로 관리 (데모/실데이터 모드 공통).
@@ -121,5 +122,18 @@ export function useTeams(onRename?: (oldName: string, newName: string) => void):
     })
   }, [])
 
-  return { teams, colorOf, addTeam, renameTeam, removeTeam, setTeamColor }
+  // 팀 순서 변경 (드래그) — from 팀을 to 팀 자리(앞)로 이동
+  const reorderTeams = useCallback((fromName: string, toName: string) => {
+    if (fromName === toName) return
+    setTeams((prev) => {
+      if (prev.indexOf(fromName) < 0 || prev.indexOf(toName) < 0) return prev
+      const arr = prev.filter((t) => t !== fromName) // from 제거
+      const toIdx = arr.indexOf(toName)
+      arr.splice(toIdx, 0, fromName) // 대상 앞에 삽입
+      save(TEAMS_STORAGE_KEY, arr)
+      return arr
+    })
+  }, [])
+
+  return { teams, colorOf, addTeam, renameTeam, removeTeam, setTeamColor, reorderTeams }
 }

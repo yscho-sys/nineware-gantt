@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import type { QuickLink } from '../types'
 
-export type ViewMode = 'timeline' | 'board' | 'list'
+export type ViewMode = 'timeline' | 'calendar' | 'board' | 'list'
 
 interface Props {
   teams: string[]
@@ -112,28 +112,29 @@ export function Sidebar({
           })}
           {teams.length === 0 && <div className="side-empty">팀이 없습니다</div>}
         </div>
+      </div>
 
-        <div className="side-section">
-          <div className="side-label">
-            <span>바로가기</span>
-            <button className="side-manage" onClick={onManageLinks} title="바로가기 관리">
-              <Settings2 size={14} />
-            </button>
-          </div>
-          {links.map((l) => (
-            <a
-              key={l.id}
-              className="side-item link-item"
-              href={l.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink size={13} className="link-ico" style={{ color: l.color }} />
-              <span className="team-item-name">{l.name}</span>
-            </a>
-          ))}
-          {links.length === 0 && <div className="side-empty">링크가 없습니다</div>}
+      {/* 바로가기 — 사이드바 하단(용량 패널 위)에 고정 */}
+      <div className="side-section side-links">
+        <div className="side-label">
+          <span>바로가기</span>
+          <button className="side-manage" onClick={onManageLinks} title="바로가기 관리">
+            <Settings2 size={14} />
+          </button>
         </div>
+        {links.map((l) => (
+          <a
+            key={l.id}
+            className="side-item link-item"
+            href={l.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink size={13} className="link-ico" style={{ color: l.color }} />
+            <span className="team-item-name">{l.name}</span>
+          </a>
+        ))}
+        {links.length === 0 && <div className="side-empty">링크가 없습니다</div>}
       </div>
 
       {demoMode && (

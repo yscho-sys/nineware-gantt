@@ -51,6 +51,7 @@ interface DragState {
 
 interface Props {
   tasks: Task[]
+  teams: string[] // 팀 표시 순서(사용자 지정)
   rangeStart: Date
   rangeEnd: Date
   today: Date
@@ -91,6 +92,7 @@ function previewDates(d: DragState): { start: string; due: string } {
 
 export function GanttChart({
   tasks,
+  teams,
   rangeStart,
   rangeEnd,
   today,
@@ -284,18 +286,41 @@ export function GanttChart({
       map.get(t.team)!.push(t)
     }
     return [...map.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0], 'ko'))
+      // teams 배열(사용자 지정 순서) 기준 정렬, 목록에 없는 팀은 뒤로
+      .sort((a, b) => {
+        const ia = teams.indexOf(a[0])
+        const ib = teams.indexOf(b[0])
+        return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a[0].localeCompare(b[0], 'ko')
+      })
       .map(([team, items]) => ({
         team,
         items: [...items].sort((a, b) => a.sort_order - b.sort_order),
       }))
-  }, [tasks, hidden])
+  }, [tasks, hidden, teams])
 
   const ticks = useMemo(() => {
     const arr: { date: Date; left: number }[] = []
     for (let i = 0; i < totalDays; i++) arr.push({ date: addDays(rangeStart, i), left: i * DAY_W })
     return arr
   }, [rangeStart, totalDays])
+
+  // 헤더 월 행 구간 — 각 월의 left·width·라벨('6월')
+  const monthSpans = useMemo(() => {
+    const spans: { label: string; left: number; width: number }[] = []
+    for (let i = 0; i < totalDays; i++) {
+      const d = addDays(rangeStart, i)
+      if (i === 0 || d.getDate() === 1) {
+        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+        const daysToEnd = Math.min(daysBetween(d, monthEnd), totalDays - 1 - i)
+        spans.push({
+          label: `${d.getFullYear()}.${d.getMonth() + 1}`,
+          left: i * DAY_W,
+          width: (daysToEnd + 1) * DAY_W,
+        })
+      }
+    }
+    return spans
+  }, [rangeStart, totalDays, DAY_W])
 
   const todayCol = daysBetween(rangeStart, today)
   const todayLeft = todayCol * DAY_W
@@ -306,15 +331,19 @@ export function GanttChart({
   const panRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
   const [panning, setPanning] = useState(false)
 
-  // 데이터 범위가 바뀌면(저장/리로드 후) 과거로 가지 않고 오늘 기준으로 스크롤 맞춤.
-  // 오늘 칸이 타임라인 좌측에서 약 5일 안쪽에 오도록 배치.
+  // 가로 스크롤 위치 추적 — 막대 시작이 화면 밖이면 막대 안 이름을 안쪽으로 밀기
+  const [scrollLeft, setScrollLeft] = useState(0)
+
+  // 최초 1회만 오늘 기준으로 스크롤(과거로 안 가게). 이후 드래그/저장 시엔 스크롤 유지.
+  const didInitScroll = useRef(false)
   useEffect(() => {
+    if (didInitScroll.current) return
     const c = scrollRef.current
     if (!c || !todayVisible) return
-    const target = Math.max(0, todayLeft - DAY_W * 5)
-    c.scrollLeft = target
+    c.scrollLeft = Math.max(0, todayLeft - DAY_W * 5)
+    didInitScroll.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeStart, todayLeft, todayVisible])
+  }, [todayVisible, todayLeft])
 
   function onGanttPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return
@@ -421,6 +450,7 @@ export function GanttChart({
       onPointerDown={onGanttPointerDown}
       onPointerMove={onGanttPointerMove}
       onPointerUp={onGanttPointerUp}
+      onScroll={(e) => setScrollLeft((e.currentTarget as HTMLElement).scrollLeft)}
     >
       {/* 헤더: 날짜 눈금 */}
       <div className="gantt-row gantt-head">
@@ -439,25 +469,39 @@ export function GanttChart({
             ))}
           </div>
         </div>
-        <div className="gantt-timeline" style={{ width: timelineWidth }}>
-          {ticks.map(({ date, left }, i) => {
-            const monthStart = date.getDate() === 1 || i === 0
-            const isToday = isSameDay(date, today)
-            return (
-              <div
-                key={i}
-                className={
-                  'day-tick' + (isWeekend(date) ? ' weekend' : '') + (isToday ? ' is-today' : '')
-                }
-                style={{ left, width: DAY_W }}
-              >
-                <span className="tick-dow">{weekdayLabel(date)}</span>
-                <span className="tick-day">
-                  {monthStart ? `${date.getMonth() + 1}/${date.getDate()}` : date.getDate()}
-                </span>
-              </div>
-            )
-          })}
+        <div className="gantt-timeline gantt-head-cols" style={{ width: timelineWidth }}>
+          {/* 위: 월 표시 행 */}
+          <div className="head-month-row">
+            {monthSpans.map((m, i) => {
+              // 구간이 화면 좌측으로 가려진 만큼 라벨을 안쪽으로 밀어 따라오게(구간 끝에서 멈춤)
+              const shift = Math.max(0, Math.min(scrollLeft - m.left, m.width - 70))
+              return (
+                <div className="head-month" key={i} style={{ left: m.left, width: m.width }}>
+                  <span className="head-month-label" style={{ transform: `translateX(${shift}px)` }}>
+                    {m.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          {/* 아래: 요일/날짜 행 */}
+          <div className="head-day-row">
+            {ticks.map(({ date, left }, i) => {
+              const isToday = isSameDay(date, today)
+              return (
+                <div
+                  key={i}
+                  className={
+                    'day-tick' + (isWeekend(date) ? ' weekend' : '') + (isToday ? ' is-today' : '')
+                  }
+                  style={{ left, width: DAY_W }}
+                >
+                  <span className="tick-dow">{weekdayLabel(date)}</span>
+                  <span className="tick-day">{date.getDate()}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -742,7 +786,8 @@ export function GanttChart({
                                     }
                                     const off = daysBetween(parseDate(eff.start), parseDate(effDate))
                                     const span = Math.max(1, daysBetween(parseDate(eff.start), parseDate(eff.due)) + 1)
-                                    const leftPct = Math.min(100, Math.max(0, (off / span) * 100))
+                                    // +0.5: 날짜 칸의 좌측 경계가 아니라 해당일 칸 '중앙'에 정렬
+                                    const leftPct = Math.min(100, Math.max(0, ((off + 0.5) / span) * 100))
                                     // 기한 지났는데 미완료면 경고(강한 레드)
                                     const overdue = !m.done && daysBetween(today, parseDate(effDate)) < 0
                                     const msColor = m.done ? '#22b455' : overdue ? '#ff2d2d' : lineColor
@@ -756,7 +801,7 @@ export function GanttChart({
                                           (m.done ? ' done' : '')
                                         }
                                         style={{ left: `${leftPct}%` }}
-                                        title={`${m.title} · ${shortLabel(parseDate(effDate))}${m.done ? ' · 완료' : overdue ? ' · ⚠ 기한 초과(미완료)' : ''}\n클릭: 완료 토글`}
+                                        title={`${t.team} › ${t.title} › ${s.title || '서브태스크'} › ${m.title}\n${shortLabel(parseDate(effDate))}${m.done ? ' · 완료' : overdue ? ' · ⚠ 기한 초과(미완료)' : ''} · 클릭: 완료 토글`}
                                         onPointerDown={(e) => {
                                           e.stopPropagation()
                                           setMsDrag({
@@ -793,8 +838,13 @@ export function GanttChart({
                                     className="bar-handle left"
                                     onPointerDown={(e) => startDrag(e, t, 'start', s)}
                                   />
-                                  {/* 한 줄 정보: 제목 · 기간/% · 링크 */}
-                                  <div className="lane-row-content">
+                                  {/* 한 줄 정보: 제목 · 기간/% · 링크 — 막대 시작이 화면 밖이면 안쪽으로 따라옴 */}
+                                  <div
+                                    className="lane-row-content"
+                                    style={{
+                                      transform: `translateX(${Math.max(0, Math.min(scrollLeft - left, width - 44))}px)`,
+                                    }}
+                                  >
                                     <span className={'lane-title' + (s.done ? ' sub-done' : '')}>
                                       {s.title}
                                     </span>

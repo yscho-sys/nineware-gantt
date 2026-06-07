@@ -12,7 +12,7 @@
   --danger: #f0502a;
 
   --row-h: 52px;
-  --head-h: 46px;
+  --head-h: 64px;
   --label-w: 272px;
   --day-w: 34px;
 
@@ -377,6 +377,115 @@ button {
   background: rgba(255, 255, 255, 0.14);
   overflow: hidden;
 }
+
+/* ===================== 달력 보기 ===================== */
+.cal-view {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px 12px 16px;
+}
+.cal-month {
+  margin-bottom: 18px;
+}
+.cal-month-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 8px 2px 6px;
+}
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.cal-wd {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  padding: 2px 0;
+}
+.cal-wd.sun { color: #f0726a; }
+.cal-wd.sat { color: #6a9cf0; }
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-cell {
+  min-height: 102px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 3px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+.cal-cell.empty {
+  background: transparent;
+  border: none;
+}
+.cal-cell.today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.cal-daynum {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cal-daynum.sun { color: #f0726a; }
+.cal-daynum.sat { color: #6a9cf0; }
+/* 마일스톤 목록 — 점 + 이름, 또렷하게 */
+.cal-ms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cal-ms {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--ms-color) 16%, transparent);
+  border: 1px solid var(--ms-color);
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+.cal-ms:hover {
+  background: color-mix(in srgb, var(--ms-color) 28%, transparent);
+}
+.cal-ms-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ms-color);
+}
+.cal-ms-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-ms.done .cal-ms-name {
+  text-decoration: line-through;
+  color: var(--muted);
+}
 .stat-track > div {
   height: 100%;
 }
@@ -387,6 +496,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: auto;
+  position: relative;
 }
 .gantt.panning {
   cursor: grabbing;
@@ -535,6 +645,36 @@ button {
   width: fit-content; /* 다른 그룹과 동일하게 — sticky 라벨이 끝까지 유효 */
   min-width: 100%;
   background: var(--surface);
+}
+/* 헤더 2단 — 위 월 행 + 아래 요일/날짜 행 */
+.gantt-head-cols {
+  display: flex;
+  flex-direction: column;
+}
+.head-month-row {
+  position: relative;
+  height: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.head-month {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  border-left: 1px solid var(--border-soft);
+  overflow: hidden; /* 라벨이 구간 밖으로 안 나가게 */
+}
+.head-month-label {
+  padding-left: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.head-day-row {
+  position: relative;
+  flex: 1;
 }
 .gantt-head .gantt-label {
   position: sticky;
@@ -733,9 +873,9 @@ button {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 9px;
   z-index: 3;
-  cursor: ew-resize;
+  cursor: ew-resize; /* 기간 조절 — 좌우 리사이즈 커서 */
 }
 .bar-handle.left {
   left: 0;
@@ -744,7 +884,7 @@ button {
   right: 0;
 }
 .bar-handle:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.3);
 }
 .task-bar .bar-accent {
   position: absolute;
@@ -754,14 +894,6 @@ button {
   width: 5px;
   z-index: 2;
 }
-.task-bar .bar-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 0;
-}
-/* 태스크(그룹) 헤더 요약 막대 */
 /* 메인태스크 헤더 행 — 한 줄 내용에 맞게 타이트하게 */
 .gantt-row.task-group-row {
   height: 34px;
@@ -966,10 +1098,18 @@ button {
   bottom: 100%; /* 막대 윗변 */
   width: 0;
   z-index: 6;
-  cursor: grab;
+  cursor: move; /* 마일스톤 날짜 이동 — 서브태스크(grab)와 구분 */
 }
 .lane-ms.dragging {
   z-index: 10;
+}
+/* 기한 지난 미완료 마일스톤 — 점멸 경고 */
+@keyframes ms-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.lane-ms.overdue {
+  animation: ms-blink 1s ease-in-out infinite;
 }
 /* 아래 향한 삼각형 — 날짜 지점 중앙, 막대 윗변에서 1px 띄움 */
 .lane-ms-tri {
@@ -982,6 +1122,7 @@ button {
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-top: 7px solid var(--line-color, #2f6bff);
+  transition: transform 0.1s;
 }
 /* 제목 텍스트 — 삼각형 위, 막대와 동일 색상 */
 .lane-ms-label {
@@ -1007,7 +1148,6 @@ button {
   padding: 0 8px;
   color: #16181f;
   white-space: nowrap;
-  overflow: hidden;
   border-radius: 6px;
 }
 .lane-title {
@@ -1452,6 +1592,18 @@ button {
   flex-direction: column;
   gap: 6px;
 }
+.team-row-wrap.drag-over .team-row {
+  border-top: 2px solid var(--accent);
+}
+.team-drag-handle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--muted-2);
+  cursor: grab;
+}
+.team-drag-handle:active {
+  cursor: grabbing;
+}
 .team-color-btn {
   flex: 0 0 auto;
   width: 16px;
@@ -1774,20 +1926,6 @@ input[type='date'] {
 .step-drag-handle:active {
   cursor: grabbing;
 }
-.step-card-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.step-card-title.done {
-  text-decoration: line-through;
-  color: var(--muted-2);
-}
 .step-card-dates {
   flex: 0 0 auto;
   font-size: 10.5px;
@@ -1882,6 +2020,13 @@ input[type='date'] {
 }
 
 /* ---------- 용량 게이지 (하단 고정, 트랙으로 묶음) ---------- */
+/* 하단 고정 바로가기 — 길면 자체 스크롤 */
+.side-links {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  max-height: 40%;
+  overflow-y: auto;
+}
 .usage-panel {
   flex: 0 0 auto;
   margin-top: 8px;

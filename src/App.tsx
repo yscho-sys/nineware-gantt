@@ -8,6 +8,7 @@ import type { ViewMode } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { GanttChart } from './components/GanttChart'
 import { BoardView } from './components/BoardView'
+import { CalendarView } from './components/CalendarView'
 import { ListView } from './components/ListView'
 import { TaskEditPanel } from './components/TaskEditPanel'
 import { TeamManager } from './components/TeamManager'
@@ -35,7 +36,8 @@ export default function App() {
     (oldName: string, newName: string) => void renameTeamInTasks(oldName, newName),
     [renameTeamInTasks],
   )
-  const { teams, colorOf, addTeam, renameTeam, removeTeam, setTeamColor } = useTeams(onRename)
+  const { teams, colorOf, addTeam, renameTeam, removeTeam, setTeamColor, reorderTeams } =
+    useTeams(onRename)
   const { templates, addTemplate } = useTemplates()
   const { links, addLink, updateLink, removeLink, reorderLinks } = useLinks()
 
@@ -354,6 +356,7 @@ export default function App() {
           <div className="seg-toggle">
             {([
               { key: 'timeline', label: '타임라인' },
+              { key: 'calendar', label: '달력' },
               { key: 'board', label: '보드' },
               { key: 'list', label: '목록' },
             ] as { key: ViewMode; label: string }[]).map((v) => (
@@ -367,19 +370,18 @@ export default function App() {
             ))}
           </div>
           <div className="spacer" />
-          {view !== 'board' && (
-            <div className="seg-toggle">
-              {filterChips.map((c) => (
-                <button
-                  key={c.key}
-                  className={'seg-btn' + (filter === c.key ? ' active' : '')}
-                  onClick={() => setFilter(c.key)}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* 보드 보기에선 필터 숨기되 공간은 유지(visibility) → 보기 세그먼트 위치 고정 */}
+          <div className="seg-toggle" style={{ visibility: view === 'board' ? 'hidden' : 'visible' }}>
+            {filterChips.map((c) => (
+              <button
+                key={c.key}
+                className={'seg-btn' + (filter === c.key ? ' active' : '')}
+                onClick={() => setFilter(c.key)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
         </header>
 
         <div className="main-body">
@@ -397,6 +399,12 @@ export default function App() {
               <br />
               왼쪽 <b>＋ 새 태스크</b> 버튼으로 추가해 보세요.
             </div>
+          ) : view === 'calendar' ? (
+            <CalendarView
+              tasks={boardTasks}
+              today={today}
+              onSelect={(task) => setEditing({ task })}
+            />
           ) : view === 'board' ? (
             <BoardView
               tasks={boardTasks}
@@ -418,6 +426,7 @@ export default function App() {
           ) : (
             <GanttChart
               tasks={filteredTasks}
+              teams={teams}
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
               today={today}
@@ -506,6 +515,7 @@ export default function App() {
           onRename={renameTeam}
           onRemove={removeTeam}
           onSetColor={setTeamColor}
+          onReorder={reorderTeams}
           onClose={() => setShowTeams(false)}
         />
       )}
