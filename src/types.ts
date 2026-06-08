@@ -65,7 +65,8 @@ export interface Task {
   start_date: string // 'YYYY-MM-DD'
   due_date: string // 'YYYY-MM-DD'
   slides_url: string | null // 대표 구글 슬라이드 링크
-  owner: string | null // 담당자 (선택)
+  owner: string | null // 담당자 표시명 (선택)
+  owner_email?: string | null // 담당자 로그인 이메일 (권한 판단용, 선택)
   notes: string | null // 메모 (선택)
   color?: string // 메인태스크 좌측 컬러 바 색 (미지정 시 상태색)
   steps: TaskStep[] // 세부 단계 목록
@@ -76,6 +77,23 @@ export interface Task {
 
 // 신규 작성/수정 시 폼에서 다루는 값 (id/타임스탬프 제외)
 export type TaskDraft = Omit<Task, 'id' | 'created_at' | 'updated_at'>
+
+// ── 공유·권한 (멤버) ──────────────────────────────
+//  admin: 전체 편집 + 멤버 관리 / editor: 담당 팀·담당 태스크 편집 / viewer: 보기 전용
+export type AppRole = 'admin' | 'editor' | 'viewer'
+
+export interface Member {
+  email: string
+  name?: string | null
+  role: AppRole
+  teams?: string[] // editor 가 편집할 수 있는 팀 이름들
+}
+
+export const ROLE_LABELS: Record<AppRole, string> = {
+  admin: '관리자',
+  editor: '편집',
+  viewer: '보기',
+}
 
 // 사이드바 바로가기 링크 (추가/수정/삭제 가능)
 export interface QuickLink {

@@ -3,6 +3,7 @@ import { Pencil, Copy, Trash2, ExternalLink, MapPin, Check } from 'lucide-react'
 import type { Task, TaskStatus, Milestone } from '../types'
 import { STATUS_ORDER, STATUS_META } from '../types'
 import { parseDate, shortLabel } from '../lib/dates'
+import { usePermit } from '../lib/permit'
 
 interface Props {
   task: Task
@@ -49,6 +50,9 @@ export function ContextMenu({
     }
   }, [onClose])
 
+  const { canEdit } = usePermit()
+  const editable = canEdit(task)
+
   const left = Math.min(x, window.innerWidth - 210)
   const top = Math.min(y, window.innerHeight - 280)
 
@@ -60,7 +64,7 @@ export function ContextMenu({
         {task.title}
       </div>
 
-      {onAddMilestone && milestoneDate && (
+      {editable && onAddMilestone && milestoneDate && (
         <>
           <button className="ctx-item" onClick={onAddMilestone}>
             <MapPin size={14} /> 마일스톤 추가 ({shortLabel(parseDate(milestoneDate))})
@@ -70,7 +74,7 @@ export function ContextMenu({
       )}
 
       {/* 마일스톤 완료 확인 체크 */}
-      {onToggleMilestone && milestones && milestones.length > 0 && (
+      {editable && onToggleMilestone && milestones && milestones.length > 0 && (
         <>
           <div className="ctx-label">마일스톤 완료 확인</div>
           {milestones.map((m) => (
@@ -89,9 +93,11 @@ export function ContextMenu({
         </>
       )}
 
-      <button className="ctx-item" onClick={() => onEdit(task)}>
-        <Pencil size={14} /> 편집 / 세부 단계
-      </button>
+      {editable && (
+        <button className="ctx-item" onClick={() => onEdit(task)}>
+          <Pencil size={14} /> 편집 / 세부 단계
+        </button>
+      )}
 
       {slides && (
         <button
@@ -102,30 +108,39 @@ export function ContextMenu({
         </button>
       )}
 
-      <div className="ctx-sep" />
-      <div className="ctx-label">상태 변경</div>
-      <div className="ctx-status-row">
-        {STATUS_ORDER.map((s) => (
-          <button
-            key={s}
-            className={'ctx-status' + (task.status === s ? ' active' : '')}
-            style={{ borderColor: STATUS_META[s].color }}
-            onClick={() => onSetStatus(task, s)}
-            title={STATUS_META[s].label}
-          >
-            <span className="ctx-status-dot" style={{ background: STATUS_META[s].color }} />
-            {STATUS_META[s].label}
-          </button>
-        ))}
-      </div>
+      {editable ? (
+        <>
+          <div className="ctx-sep" />
+          <div className="ctx-label">상태 변경</div>
+          <div className="ctx-status-row">
+            {STATUS_ORDER.map((s) => (
+              <button
+                key={s}
+                className={'ctx-status' + (task.status === s ? ' active' : '')}
+                style={{ borderColor: STATUS_META[s].color }}
+                onClick={() => onSetStatus(task, s)}
+                title={STATUS_META[s].label}
+              >
+                <span className="ctx-status-dot" style={{ background: STATUS_META[s].color }} />
+                {STATUS_META[s].label}
+              </button>
+            ))}
+          </div>
 
-      <div className="ctx-sep" />
-      <button className="ctx-item" onClick={() => onDuplicate(task)}>
-        <Copy size={14} /> 복제 (분리 생성)
-      </button>
-      <button className="ctx-item danger" onClick={() => onDelete(task)}>
-        <Trash2 size={14} /> 삭제
-      </button>
+          <div className="ctx-sep" />
+          <button className="ctx-item" onClick={() => onDuplicate(task)}>
+            <Copy size={14} /> 복제 (분리 생성)
+          </button>
+          <button className="ctx-item danger" onClick={() => onDelete(task)}>
+            <Trash2 size={14} /> 삭제
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="ctx-sep" />
+          <div className="ctx-label">보기 권한 — 편집할 수 없습니다</div>
+        </>
+      )}
     </div>
   )
 }

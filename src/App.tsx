@@ -1,6 +1,14 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, Users, Save, Undo2, Redo2, History } from 'lucide-react'
+import { useAuth } from './lib/auth'
+import { LoginScreen } from './components/LoginScreen'
+import { MemberManager } from './components/MemberManager'
+import { VersionPanel } from './components/VersionPanel'
+import { useMembers } from './lib/useMembers'
+import { roleOf, canManageMembers, canCreate, canEditTask } from './lib/permits'
+import { PermitProvider, type PermitValue } from './lib/permit'
+import { ROLE_LABELS } from './types'
 import { useTasks } from './lib/useTasks'
 import { useTeams } from './lib/useTeams'
 import { Sidebar } from './components/Sidebar'
@@ -30,8 +38,83 @@ interface Editing {
 type StatusFilter = 'all' | TaskStatus | 'overdue'
 
 export default function App() {
-  const { tasks, loading, error, demoMode, addTask, editTask, removeTask, renameTeamInTasks } =
-    useTasks()
+  const { user, loading: authLoading, configured, logout } = useAuth()
+  const { members, addMember, updateMember, removeMember } = useMembers()
+  const {
+    tasks,
+    loading,
+    error,
+    demoMode,
+    dirty,
+    saving,
+    canUndo,
+    canRedo,
+    recoverable,
+    addTask,
+    editTask,
+    removeTask,
+    renameTeamInTasks,
+    replaceTasks,
+    save,
+    undo,
+    redo,
+    recover,
+    discardBackup,
+  } = useTasks()
+
+  // 내 역할. 데모 모드(비로그인 로컬)는 전체 권한(admin)으로 취급.
+  const myEmail = user?.email ?? ''
+  const myRole = configured ? roleOf(myEmail, members) : 'admin'
+  const myTeams = members[myEmail.toLowerCase()]?.teams ?? []
+  const permit: PermitValue = useMemo(
+    () => ({
+      role: myRole,
+      canCreate: configured ? canCreate(myRole, myTeams) : true,
+      canEdit: (t) => (configured ? canEditTask(myEmail, myRole, myTeams, t) : true),
+    }),
+    // myTeams 는 members 변경 시에만 새 배열 → members 의존으로 충분
+    [myRole, myEmail, configured, members],
+  )
+
+  const doSave = useCallback(() => {
+    if (!dirty || saving) return
+    void save().catch(() => {}) // 오류는 error 배너로 노출됨
+  }, [dirty, saving, save])
+
+  // 단축키: Ctrl+S 저장 · Ctrl+Z 실행취소 · Ctrl+Shift+Z/Ctrl+Y 다시실행
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod) return
+      const k = e.key.toLowerCase()
+      const el = e.target as HTMLElement | null
+      const editableField =
+        !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      if (k === 's') {
+        e.preventDefault()
+        doSave()
+      } else if (!editableField && k === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if (!editableField && ((k === 'z' && e.shiftKey) || k === 'y')) {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [doSave, undo, redo])
+
+  // 미저장 변경이 있으면 새로고침/창닫기 시 브라우저 경고
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
   const onRename = useCallback(
     (oldName: string, newName: string) => void renameTeamInTasks(oldName, newName),
     [renameTeamInTasks],
@@ -51,6 +134,8 @@ export default function App() {
   } | null>(null)
   const [showTeams, setShowTeams] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
+  const [showVersions, setShowVersions] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set()) // 간트 내 접기
   const [hidden, setHidden] = useState<Set<string>>(new Set()) // 사이드바 눈: 팀 단위 타임라인 숨김
   const [hiddenTasks, setHiddenTasks] = useState<Set<string>>(new Set()) // 메인태스크 단위 숨김
@@ -163,7 +248,7 @@ export default function App() {
     [editTask],
   )
 
-  // 메인태스크 순서 변경(같은 팀 내 라벨 드래그) → sort_order 재할당해 저장
+  // 메인태스크 순서 변경(같은 팀 내 라벨 드래그) → sort_order 재할당 (undo 1단계)
   const handleReorderTask = useCallback(
     (fromId: string, toId: string) => {
       if (fromId === toId) return
@@ -177,15 +262,14 @@ export default function App() {
       const toIdx = teamTasks.findIndex((t) => t.id === toId)
       const [moved] = teamTasks.splice(fromIdx, 1)
       teamTasks.splice(toIdx, 0, moved)
-      // 새 순서대로 sort_order 0,1,2… 재할당 후 변경된 것만 저장
-      teamTasks.forEach((t, i) => {
-        if (t.sort_order !== i) {
-          const { id: _id, created_at: _c, updated_at: _u, ...rest } = t
-          void editTask(t.id, { ...rest, sort_order: i })
-        }
-      })
+      // 새 순서대로 sort_order 0,1,2… 재할당 → 전체 작업본 한 번에 교체
+      const orderMap = new Map(teamTasks.map((t, i) => [t.id, i]))
+      const next = tasks.map((t) =>
+        orderMap.has(t.id) ? { ...t, sort_order: orderMap.get(t.id) as number } : t,
+      )
+      replaceTasks(next)
     },
-    [tasks, editTask],
+    [tasks, replaceTasks],
   )
 
   function taskToDraft(task: Task): TaskDraft {
@@ -319,7 +403,16 @@ export default function App() {
   const boardTasks = tasks.filter((t) => !hidden.has(t.team)) // 보드: 모든 상태
   const listTasks = filteredTasks.filter((t) => !hidden.has(t.team)) // 목록: 상태 필터 반영
 
+  // 실데이터 모드(Supabase 연결)에서는 로그인 필수. 데모 모드는 로그인 없이 사용.
+  if (configured && authLoading) {
+    return <div className="auth-splash">불러오는 중…</div>
+  }
+  if (configured && !user) {
+    return <LoginScreen />
+  }
+
   return (
+    <PermitProvider value={permit}>
     <div
       className={'app' + (sidebarOpen ? '' : ' sidebar-collapsed')}
       style={{ '--label-w': `${labelWidth}px` } as CSSProperties}
@@ -382,11 +475,70 @@ export default function App() {
               </button>
             ))}
           </div>
+          <div className="header-tools">
+            <button className="tool-btn" onClick={undo} disabled={!canUndo} title="실행취소 (Ctrl+Z)">
+              <Undo2 size={16} />
+            </button>
+            <button className="tool-btn" onClick={redo} disabled={!canRedo} title="다시실행 (Ctrl+Shift+Z)">
+              <Redo2 size={16} />
+            </button>
+            <button className="tool-btn" onClick={() => setShowVersions(true)} title="버전 기록 · 복원">
+              <History size={16} />
+            </button>
+            <button
+              className={'save-btn' + (dirty ? ' dirty' : '')}
+              onClick={doSave}
+              disabled={!dirty || saving}
+              title="저장 (Ctrl+S)"
+            >
+              <Save size={15} />
+              {saving ? '저장 중…' : dirty ? '저장' : '저장됨'}
+            </button>
+          </div>
+          {canManageMembers(myRole) && (
+            <button
+              className="sidebar-toggle"
+              onClick={() => setShowMembers(true)}
+              title="멤버 · 권한 관리"
+              aria-label="멤버 관리"
+            >
+              <Users size={18} />
+            </button>
+          )}
+          {user && (
+            <span className="user-chip" title={user.email}>
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="" width={24} height={24} referrerPolicy="no-referrer" />
+              ) : (
+                <span className="user-avatar-fallback">
+                  {(user.displayName ?? user.email).charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span className="user-name">{user.displayName ?? user.email}</span>
+              <span className={'role-badge ' + myRole}>{ROLE_LABELS[myRole]}</span>
+              <button className="user-logout" onClick={() => void logout()} title="로그아웃">
+                <LogOut size={14} />
+              </button>
+            </span>
+          )}
         </header>
 
         <div className="main-body">
+          {recoverable && (
+            <div className="recover-banner">
+              <span>저장하지 않고 종료된 이전 변경이 있습니다. 복구할까요?</span>
+              <div className="recover-actions">
+                <button className="btn-primary" onClick={recover}>
+                  복구
+                </button>
+                <button className="btn-ghost" onClick={discardBackup}>
+                  무시
+                </button>
+              </div>
+            </div>
+          )}
           {error && (
-            <div className="error-banner">데이터를 불러오지 못했습니다: {error}</div>
+            <div className="error-banner">저장/불러오기 오류: {error}</div>
           )}
 
           <StatusBar tasks={tasks} today={today} />
@@ -460,6 +612,7 @@ export default function App() {
           isNew={!editing.task}
           teams={teams}
           projects={projects}
+          members={members}
           defaultStart={editing.start ?? toISODate(today)}
           defaultDue={toISODate(addDays(parseDate(editing.start ?? toISODate(today)), 14))}
           defaultTeam={editing.team}
@@ -530,6 +683,26 @@ export default function App() {
           onClose={() => setShowLinks(false)}
         />
       )}
+
+      {showMembers && (
+        <MemberManager
+          members={members}
+          teams={teams}
+          onAdd={addMember}
+          onUpdate={updateMember}
+          onRemove={removeMember}
+          onClose={() => setShowMembers(false)}
+        />
+      )}
+
+      {showVersions && (
+        <VersionPanel
+          demoMode={demoMode}
+          onRestore={(snap) => replaceTasks(snap)}
+          onClose={() => setShowVersions(false)}
+        />
+      )}
     </div>
+    </PermitProvider>
   )
 }

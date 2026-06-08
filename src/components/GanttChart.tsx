@@ -14,6 +14,14 @@ import type { Task, TaskStep } from '../types'
 import { STATUS_META, stepProgress } from '../types'
 import { STEP_COLORS } from '../lib/palette'
 import { packLanes } from '../lib/lanes'
+import { usePermit } from '../lib/permit'
+import { ConfirmDialog } from './ConfirmDialog'
+
+// 드래그로 조정한 변경 — 확인 팝업에서 확정/취소
+type PendingChange =
+  | { kind: 'task'; task: Task; start: string; due: string }
+  | { kind: 'step'; task: Task; stepId: string; stepTitle: string; start: string; due: string }
+  | { kind: 'ms'; task: Task; stepId: string; msId: string; date: string }
 import {
   parseDate,
   daysBetween,
@@ -47,6 +55,7 @@ interface DragState {
   origDue: string
   deltaDays: number
   moved: boolean
+  editable: boolean // 권한 없으면 false → 드래그(이동/기간조절) 무시, 클릭 선택만
 }
 
 interface Props {
@@ -114,6 +123,8 @@ export function GanttChart({
   onCreateNew,
   onAddStep,
 }: Props) {
+  const { canEdit } = usePermit() // 권한 없으면 드래그·생성 비활성
+  const [pending, setPending] = useState<PendingChange | null>(null) // 드래그 조정 확인 대기
   const [zoom, setZoom] = useState<ZoomLevel>('day') // 보기 단위 (일/주/월)
   const DAY_W = ZOOM_DAY_W[zoom] // 기존 DAY_W 참조를 줌에 따라 가변
   const totalDays = daysBetween(rangeStart, rangeEnd) + 1
@@ -180,6 +191,7 @@ export function GanttChart({
     function onMove(e: PointerEvent) {
       const d = dragRef.current
       if (!d) return
+      if (!d.editable) return // 권한 없음 → 이동 누적 안 함(클릭 선택만 유지)
       const delta = Math.round((e.clientX - d.startClientX) / DAY_W)
       setDrag((prev) =>
         prev && delta !== prev.deltaDays
@@ -192,10 +204,21 @@ export function GanttChart({
       if (!d) return
       const task = tasks.find((t) => t.id === d.id)
       if (task) {
-        if (d.moved) {
+        if (d.moved && d.editable) {
           const { start, due } = previewDates(d)
-          if (d.stepId) onRescheduleStep(task, d.stepId, start, due)
-          else onReschedule(task, start, due)
+          if (d.stepId) {
+            const st = task.steps.find((s) => s.id === d.stepId)
+            setPending({
+              kind: 'step',
+              task,
+              stepId: d.stepId,
+              stepTitle: st?.title || '서브태스크',
+              start,
+              due,
+            })
+          } else {
+            setPending({ kind: 'task', task, start, due })
+          }
         } else if (d.mode === 'move') {
           onSelect(task)
         }
@@ -226,12 +249,12 @@ export function GanttChart({
     function onUp() {
       const d = msDragRef.current
       if (!d) return
-      if (d.moved) {
+      if (d.moved && canEdit(d.task)) {
         // 막대 기간(min~max) 안으로 클램프
         let nd = addDays(parseDate(d.origDate), d.deltaDays)
         if (nd < parseDate(d.minDate)) nd = parseDate(d.minDate)
         if (nd > parseDate(d.maxDate)) nd = parseDate(d.maxDate)
-        onMoveMilestone(d.task, d.stepId, d.msId, toISODate(nd))
+        setPending({ kind: 'ms', task: d.task, stepId: d.stepId, msId: d.msId, date: toISODate(nd) })
       }
       setMsDrag(null)
     }
@@ -241,7 +264,7 @@ export function GanttChart({
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [msDrag, onMoveMilestone])
+  }, [msDrag, onMoveMilestone, canEdit])
 
   // 차트 가로 스크롤 네비게이션
   function scrollToToday() {
@@ -275,6 +298,7 @@ export function GanttChart({
       origDue,
       deltaDays: 0,
       moved: false,
+      editable: canEdit(t),
     })
   }
 
@@ -770,8 +794,7 @@ export function GanttChart({
                                   }}
                                   title={`${s.title} · ${rangeLabel(eff.start, eff.due)} · ${pct}%`}
                                 >
-                                  {/* 진행도 채움 (막대 내부 띠) */}
-                                  <span className="lane-fill" style={{ width: `${pct}%` }} />
+                                  {/* 진행도 시각 띠 제거 — 진행률은 라벨의 "· N%" 숫자로 표시 */}
                                   {/* 마일스톤 점들 (점 + 위 제목 텍스트, 드래그로 날짜 이동) */}
                                   {(s.milestones ?? []).map((m) => {
                                     // 드래그 중인 점은 미리보기 날짜로 위치 반영
@@ -838,32 +861,35 @@ export function GanttChart({
                                     className="bar-handle left"
                                     onPointerDown={(e) => startDrag(e, t, 'start', s)}
                                   />
-                                  {/* 한 줄 정보: 제목 · 기간/% · 링크 — 막대 시작이 화면 밖이면 안쪽으로 따라옴 */}
-                                  <div
-                                    className="lane-row-content"
-                                    style={{
-                                      transform: `translateX(${Math.max(0, Math.min(scrollLeft - left, width - 44))}px)`,
-                                    }}
-                                  >
-                                    <span className={'lane-title' + (s.done ? ' sub-done' : '')}>
-                                      {s.title}
-                                    </span>
-                                    <span className="lane-meta">
-                                      {rangeLabel(eff.start, eff.due)} · {pct}%
-                                    </span>
-                                    {s.url && (
-                                      <button
-                                        className="lane-link"
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          window.open(s.url, '_blank', 'noopener')
-                                        }}
-                                        title="링크 열기"
-                                      >
-                                        <ExternalLink size={12} />
-                                      </button>
-                                    )}
+                                  {/* 한 줄 정보: 제목 · 기간/% · 링크
+                                      클리핑 박스(막대 크기) 안에서 스크롤 따라 이동 → 넘치면 막대 경계에서 잘림 */}
+                                  <div className="lane-clip">
+                                    <div
+                                      className="lane-row-content"
+                                      style={{
+                                        transform: `translate(${Math.max(0, Math.min(scrollLeft - left, width - 44))}px, -50%)`,
+                                      }}
+                                    >
+                                      <span className={'lane-title' + (s.done ? ' sub-done' : '')}>
+                                        {s.title}
+                                      </span>
+                                      <span className="lane-meta">
+                                        {rangeLabel(eff.start, eff.due)} · {pct}%
+                                      </span>
+                                      {s.url && (
+                                        <button
+                                          className="lane-link"
+                                          onPointerDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            window.open(s.url, '_blank', 'noopener')
+                                          }}
+                                          title="링크 열기"
+                                        >
+                                          <ExternalLink size={12} />
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                   <span
                                     className="bar-handle right"
@@ -933,6 +959,27 @@ export function GanttChart({
           </button>
         ))}
       </div>
+    )}
+
+    {pending && (
+      <ConfirmDialog
+        title="일정 변경 확인"
+        message={
+          pending.kind === 'task'
+            ? `"${pending.task.title}" 일정을 ${shortLabel(parseDate(pending.start))} ~ ${shortLabel(parseDate(pending.due))} 로 변경할까요?`
+            : pending.kind === 'step'
+              ? `"${pending.stepTitle}" 일정을 ${shortLabel(parseDate(pending.start))} ~ ${shortLabel(parseDate(pending.due))} 로 변경할까요?`
+              : `마일스톤을 ${shortLabel(parseDate(pending.date))} (으)로 이동할까요?`
+        }
+        onConfirm={() => {
+          if (pending.kind === 'task') onReschedule(pending.task, pending.start, pending.due)
+          else if (pending.kind === 'step')
+            onRescheduleStep(pending.task, pending.stepId, pending.start, pending.due)
+          else onMoveMilestone(pending.task, pending.stepId, pending.msId, pending.date)
+          setPending(null)
+        }}
+        onCancel={() => setPending(null)}
+      />
     )}
     </>
   )

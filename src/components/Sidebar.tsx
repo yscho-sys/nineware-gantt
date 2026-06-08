@@ -8,6 +8,7 @@ import {
   Cloud,
 } from 'lucide-react'
 import type { QuickLink } from '../types'
+import { usePermit } from '../lib/permit'
 
 export type ViewMode = 'timeline' | 'calendar' | 'board' | 'list'
 
@@ -76,9 +77,15 @@ export function Sidebar({
   onManageTeams,
   onManageLinks,
 }: Props) {
+  const { canCreate } = usePermit()
   return (
     <aside className="sidebar">
-      <button className="new-task-btn" onClick={onNewTask}>
+      <button
+        className="new-task-btn"
+        onClick={onNewTask}
+        disabled={!canCreate}
+        title={canCreate ? '새 태스크 추가' : '생성 권한이 없습니다 (보기 전용)'}
+      >
         <Plus size={16} /> 새 태스크
       </button>
 

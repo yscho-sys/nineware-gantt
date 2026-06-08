@@ -42,12 +42,14 @@ create trigger trg_tasks_updated_at
 -- RLS(행 수준 보안) 활성화
 alter table public.tasks enable row level security;
 
--- v1: '나만 사용' 단계 — anon 키로 읽기/쓰기 허용.
--- (이후 팀 로그인 도입 시 이 정책을 인증 사용자 한정으로 교체)
+-- v2(로그인 도입): anon + 로그인(authenticated) 사용자 모두 읽기/쓰기 허용.
+-- 로그인 후 역할이 anon→authenticated 로 바뀌므로 authenticated 를 반드시 포함해야
+-- 데이터가 보인다. (세밀한 팀/태스크별 편집 권한은 이후 단계에서 이 정책을 교체)
 drop policy if exists "tasks_anon_all" on public.tasks;
-create policy "tasks_anon_all"
+drop policy if exists "tasks_all_access" on public.tasks;
+create policy "tasks_all_access"
   on public.tasks
   for all
-  to anon
+  to anon, authenticated
   using (true)
   with check (true);

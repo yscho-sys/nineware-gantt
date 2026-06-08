@@ -10,9 +10,10 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react'
-import type { Task, TaskDraft, TaskStatus, TaskStep, ProcessTemplate } from '../types'
+import type { Task, TaskDraft, TaskStatus, TaskStep, ProcessTemplate, Member } from '../types'
 import { STATUS_ORDER, STATUS_META, progressFromSteps, stepProgress } from '../types'
 import { STEP_COLORS } from '../lib/palette'
+import { usePermit } from '../lib/permit'
 
 function newStepId(): string {
   return 'step-' + crypto.randomUUID()
@@ -30,6 +31,7 @@ interface Props {
   isNew: boolean
   teams: string[] // 팀 드롭다운 목록
   projects: string[] // 프로젝트 자동완성 목록
+  members: Record<string, Member> // 담당 계정 선택용
   defaultStart: string
   defaultDue: string
   defaultTeam?: string // 빈공간 클릭 생성 시 채울 팀
@@ -45,6 +47,7 @@ export function TaskEditPanel({
   isNew,
   teams,
   projects,
+  members,
   defaultStart,
   defaultDue,
   defaultTeam,
@@ -63,6 +66,7 @@ export function TaskEditPanel({
   const [dueDate, setDueDate] = useState('')
   const [slidesUrl, setSlidesUrl] = useState('')
   const [owner, setOwner] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('') // 담당 계정(편집권한 연결)
   const [notes, setNotes] = useState('')
   const [color, setColor] = useState<string>('') // 메인태스크 컬러 바 색
   const [steps, setSteps] = useState<TaskStep[]>([])
@@ -115,6 +119,7 @@ export function TaskEditPanel({
     setDueDate(task?.due_date ?? defaultDue)
     setSlidesUrl(task?.slides_url ?? '')
     setOwner(task?.owner ?? '')
+    setOwnerEmail(task?.owner_email ?? '')
     setNotes(task?.notes ?? '')
     setColor(task?.color ?? '')
     // 서브 태스크 날짜가 비어 있으면 상위 태스크 일정으로 채워, 화면 표시값 = 저장될 값 이 되도록 한다.
@@ -188,7 +193,12 @@ export function TaskEditPanel({
     if (u) window.open(u, '_blank', 'noopener')
   }
 
-  const canSave = project.trim() && team.trim() && title.trim() && startDate && dueDate && !saving
+  const permit = usePermit()
+  // 편집 가능 여부: 신규는 생성 권한, 기존은 해당 태스크 편집 권한
+  const editable = isNew ? permit.canCreate : task ? permit.canEdit(task) : true
+
+  const canSave =
+    editable && project.trim() && team.trim() && title.trim() && startDate && dueDate && !saving
 
   // 세부 단계가 있으면 진행률은 비중 기반으로 자동 계산
   const hasSteps = steps.length > 0
@@ -219,6 +229,7 @@ export function TaskEditPanel({
         due_date: hasSteps ? autoDue : dueDate,
         slides_url: slidesUrl.trim() || null,
         owner: owner.trim() || null,
+        owner_email: ownerEmail.trim() || null,
         notes: notes.trim() || null,
         color: color || undefined,
         steps: steps
@@ -313,6 +324,29 @@ export function TaskEditPanel({
               <label>담당자</label>
               <input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="(선택)" />
             </div>
+          </div>
+
+          <div className="field">
+            <label>담당 계정 (이 태스크 편집 허용)</label>
+            <select
+              value={ownerEmail}
+              onChange={(e) => {
+                const v = e.target.value
+                setOwnerEmail(v)
+                // 표시 담당자명이 비어 있으면 멤버 이름으로 채워줌
+                if (v && members[v]?.name && !owner.trim()) setOwner(members[v].name as string)
+              }}
+            >
+              <option value="">(지정 안 함)</option>
+              {Object.values(members).map((m) => (
+                <option key={m.email} value={m.email}>
+                  {m.name ? `${m.name} · ${m.email}` : m.email}
+                </option>
+              ))}
+              {ownerEmail && !members[ownerEmail] && (
+                <option value={ownerEmail}>{ownerEmail}</option>
+              )}
+            </select>
           </div>
 
           <div className="field">
@@ -697,7 +731,7 @@ export function TaskEditPanel({
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="(선택)" />
           </div>
 
-          {!isNew && task && (
+          {!isNew && task && editable && (
             <button className="btn-danger" onClick={handleDelete} disabled={saving}>
               <Trash2 size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
               태스크 삭제
@@ -706,12 +740,27 @@ export function TaskEditPanel({
         </div>
 
         <div className="drawer-foot">
-          <button className="btn-ghost" onClick={onClose}>
-            취소
-          </button>
-          <button className="btn-primary" onClick={handleSave} disabled={!canSave}>
-            {saving ? '저장 중…' : '저장'}
-          </button>
+          {editable ? (
+            <>
+              <button className="btn-ghost" onClick={onClose}>
+                취소
+              </button>
+              <button className="btn-primary" onClick={handleSave} disabled={!canSave}>
+                {saving ? '적용 중…' : '적용'}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="readonly-note">보기 권한 — 편집할 수 없습니다.</span>
+              <button
+                className="btn-primary"
+                onClick={onClose}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                닫기
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>
