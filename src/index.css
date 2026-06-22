@@ -2858,3 +2858,390 @@ input[type='date'] {
   outline: none;
   border-color: var(--accent);
 }
+
+/* ============================================================
+   #5 세부 태스크 인라인 편집 — 호버 버튼 + 팝업
+   ============================================================ */
+/* 막대 호버 시 우상단에 뜨는 편집 버튼 */
+.lane-edit {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 18px;
+  height: 18px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  z-index: 8;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.55);
+}
+.lane-bar:hover .lane-edit {
+  display: inline-flex;
+}
+.lane-edit:hover {
+  filter: brightness(1.15);
+}
+
+/* 막대 끝 링크 버튼의 개수 배지 */
+.lane-link-badge {
+  font-size: 8px;
+  font-weight: 700;
+  margin-left: 1px;
+  line-height: 1;
+}
+
+.step-pop {
+  position: fixed;
+  z-index: 140;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  color: var(--text);
+  max-height: calc(100vh - 24px); /* 화면을 넘으면만 내부 스크롤 — 보통은 스크롤 없음 */
+  overflow: hidden;
+}
+.step-pop-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface);
+  border-radius: 11px 11px 0 0;
+}
+.step-pop-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.step-pop-titletext {
+  font-weight: 600;
+  flex: 1;
+}
+.step-pop-x {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 5px;
+  display: inline-flex;
+}
+.step-pop-x:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.step-pop-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 9px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.step-pop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.step-pop-field > span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.step-pop input[type='text'],
+.step-pop input[type='number'],
+.step-pop input[type='date'],
+.step-pop input:not([type]) {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+}
+.step-pop input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.step-pop-titleinput {
+  font-weight: 600;
+}
+/* 기간·진행·비중·완료 한 묶음 (줄바꿈 허용) */
+.step-pop-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: flex-end;
+}
+.step-pop-grid .step-pop-field {
+  flex: 1 1 44%;
+}
+.step-pop-grid .step-pop-field.sm {
+  flex: 1 1 60px;
+}
+.step-pop-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  padding: 6px 9px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.step-pop-done.on {
+  background: #1f8f4a;
+  border-color: #1f8f4a;
+  color: #fff;
+}
+.step-pop-swatches {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+}
+.step-pop-sw {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.step-pop-sw.on {
+  border-color: #fff;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.step-pop-ms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+/* 마일스톤 카드 — 제목 한 줄(넓게) + 컨트롤 한 줄 */
+.ms-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.ms-card.add {
+  border-style: dashed;
+}
+.ms-title {
+  width: 100%;
+}
+.ms-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ms-date {
+  flex: 1;
+  min-width: 0;
+}
+.ms-done,
+.ms-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+.ms-done.on {
+  background: #1f8f4a;
+  border-color: #1f8f4a;
+  color: #fff;
+}
+.ms-add {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.step-pop-delete {
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--danger);
+  cursor: pointer;
+}
+.step-pop-delete:hover {
+  border-color: var(--danger);
+  background: rgba(240, 80, 42, 0.1);
+}
+.step-pop-ro {
+  font-weight: 600;
+}
+.step-pop-ro-meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ── 세부 태스크 문서 링크 에디터 (팝업/패널 공용) ── */
+.lnk-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.lnk-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lnk-label {
+  flex: 0 0 76px;
+  width: 76px;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+}
+.lnk-url {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+}
+.lnk-label:focus,
+.lnk-url:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.lnk-iconbtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.lnk-iconbtn:hover {
+  border-color: var(--accent);
+}
+.lnk-iconbtn.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.lnk-empty {
+  font-size: 11px;
+  color: var(--muted-2);
+}
+/* 패널 안 링크 블록 라벨 */
+.step-links-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.step-links-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ============================================================
+   #4 접근 권한(보기/수정) 지정 — 태스크 편집 패널
+   ============================================================ */
+.grant-hint {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.grant-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.grant-table {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.grant-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.grant-person {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.grant-chip {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.grant-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.grant-chip.edit.on {
+  background: #1f8f4a;
+  border-color: #1f8f4a;
+}
+.grant-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

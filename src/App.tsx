@@ -6,7 +6,15 @@ import { LoginScreen } from './components/LoginScreen'
 import { MemberManager } from './components/MemberManager'
 import { VersionPanel } from './components/VersionPanel'
 import { useMembers } from './lib/useMembers'
-import { roleOf, canManageMembers, canCreate, canEditTask } from './lib/permits'
+import {
+  roleOf,
+  canManageMembers,
+  canCreate,
+  canEditTask,
+  canViewTask,
+  canGrantTask,
+  isAdminEmail,
+} from './lib/permits'
 import { PermitProvider, type PermitValue } from './lib/permit'
 import { ROLE_LABELS } from './types'
 import { useTasks } from './lib/useTasks'
@@ -26,7 +34,7 @@ import { useTemplates } from './lib/useTemplates'
 import { useLinks } from './lib/useLinks'
 import { parseDate, addDays, toISODate, daysBetween } from './lib/dates'
 import { STATUS_ORDER, STATUS_META, progressFromSteps } from './types'
-import type { Task, TaskDraft, TaskStatus } from './types'
+import type { Task, TaskDraft, TaskStatus, TaskStep } from './types'
 
 // 편집 패널 상태: 신규 생성 시 팀/시작일 미리채움 지원
 interface Editing {
@@ -62,18 +70,24 @@ export default function App() {
     discardBackup,
   } = useTasks()
 
-  // 내 역할. 데모 모드(비로그인 로컬)는 전체 권한(admin)으로 취급.
+  // 내 역할/권한. 데모 모드(비로그인 로컬)는 전체 권한(admin)으로 취급.
+  //  보기/수정 게이팅은 태스크의 view_emails/edit_emails + 내 이메일 + 하드코딩 관리자만으로 판단
+  //  → app_members 로드 여부에 의존하지 않음(권한이 잘못 잠기는 #2 버그 방지).
   const myEmail = user?.email ?? ''
-  const myRole = configured ? roleOf(myEmail, members) : 'admin'
+  const amAdmin = configured ? isAdminEmail(myEmail) : true
+  const myRole = configured ? roleOf(myEmail, members) : 'admin' // 멤버 관리/생성권한 표시용
   const myTeams = members[myEmail.toLowerCase()]?.teams ?? []
   const permit: PermitValue = useMemo(
     () => ({
-      role: myRole,
+      email: myEmail,
+      isAdmin: amAdmin,
       canCreate: configured ? canCreate(myRole, myTeams) : true,
-      canEdit: (t) => (configured ? canEditTask(myEmail, myRole, myTeams, t) : true),
+      canView: (t) => (configured ? canViewTask(myEmail, t) : true),
+      canEdit: (t) => (configured ? canEditTask(myEmail, t) : true),
+      canGrant: (t) => (configured ? canGrantTask(myEmail, t) : true),
     }),
     // myTeams 는 members 변경 시에만 새 배열 → members 의존으로 충분
-    [myRole, myEmail, configured, members],
+    [myEmail, amAdmin, myRole, configured, members],
   )
 
   const doSave = useCallback(() => {
@@ -182,23 +196,30 @@ export default function App() {
     [],
   )
 
+  // 보기 권한 필터(#4) — 관리자가 아니면 권한 있는 태스크만 표시(기본 숨김).
+  //  데모 모드/관리자는 전체. 모든 표시용 계산은 이 visibleTasks 기준.
+  const visibleTasks = useMemo(
+    () => (configured && !amAdmin ? tasks.filter((t) => canViewTask(myEmail, t)) : tasks),
+    [tasks, configured, amAdmin, myEmail],
+  )
+
   // 상태 필터 적용 (요약 카드는 전체 기준, 간트만 필터)
   const filteredTasks = useMemo(() => {
-    if (filter === 'all') return tasks
+    if (filter === 'all') return visibleTasks
     if (filter === 'overdue')
-      return tasks.filter(
+      return visibleTasks.filter(
         (t) => t.status !== 'done' && daysBetween(today, parseDate(t.due_date)) < 0,
       )
-    return tasks.filter((t) => t.status === filter)
-  }, [tasks, filter, today])
+    return visibleTasks.filter((t) => t.status === filter)
+  }, [visibleTasks, filter, today])
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     let min = today
     let max = addDays(today, 30)
-    if (tasks.length > 0) {
+    if (visibleTasks.length > 0) {
       const starts: number[] = []
       const dues: number[] = []
-      for (const t of tasks) {
+      for (const t of visibleTasks) {
         starts.push(parseDate(t.start_date).getTime())
         dues.push(parseDate(t.due_date).getTime())
         for (const s of t.steps ?? []) {
@@ -210,29 +231,29 @@ export default function App() {
       max = new Date(Math.max(...dues, today.getTime()))
     }
     return { rangeStart: addDays(min, -3), rangeEnd: addDays(max, 4) }
-  }, [tasks, today])
+  }, [visibleTasks, today])
 
   const projects = useMemo(
-    () => [...new Set(tasks.map((t) => t.project).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')),
-    [tasks],
+    () => [...new Set(visibleTasks.map((t) => t.project).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')),
+    [visibleTasks],
   )
 
   const taskCounts = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const t of tasks) m[t.team] = (m[t.team] ?? 0) + 1
+    for (const t of visibleTasks) m[t.team] = (m[t.team] ?? 0) + 1
     return m
-  }, [tasks])
+  }, [visibleTasks])
 
   // 좌측 라벨 칸 폭을 가장 긴 태스크/팀명에 맞춰 자동 계산 (한글 기준 글자폭 추정)
   const labelWidth = useMemo(() => {
     let maxLen = 0
-    for (const t of tasks) {
+    for (const t of visibleTasks) {
       maxLen = Math.max(maxLen, t.title.length, t.team.length)
     }
     // 제목 글자수 × 한글폭(13.5) + 들여쓰기·칩·아이콘 고정 여백(150)
     const w = Math.round(maxLen * 13.5 + 150)
     return Math.min(440, Math.max(220, w)) // 220~440px 사이로 클램프
-  }, [tasks])
+  }, [visibleTasks])
 
   async function handleSave(draft: TaskDraft) {
     if (editing?.task) await editTask(editing.task.id, draft)
@@ -324,6 +345,32 @@ export default function App() {
     [editTask],
   )
 
+  // 서브 태스크 인라인 편집 — 제목·기간·색·비중·완료·URL 등 부분 갱신 + 진행률 재계산
+  const handleUpdateStep = useCallback(
+    (task: Task, stepId: string, patch: Partial<TaskStep>) => {
+      const steps = (task.steps ?? []).map((s) => (s.id === stepId ? { ...s, ...patch } : s))
+      void editTask(task.id, {
+        ...taskToDraft(task),
+        steps,
+        progress: task.status === 'done' ? 100 : progressFromSteps(steps),
+      })
+    },
+    [editTask],
+  )
+
+  // 서브 태스크 삭제 + 진행률 재계산
+  const handleDeleteStep = useCallback(
+    (task: Task, stepId: string) => {
+      const steps = (task.steps ?? []).filter((s) => s.id !== stepId)
+      void editTask(task.id, {
+        ...taskToDraft(task),
+        steps,
+        progress: task.status === 'done' ? 100 : progressFromSteps(steps),
+      })
+    },
+    [editTask],
+  )
+
   // 서브 태스크 막대 드래그 → 그 서브 태스크 일정만 변경
   const handleRescheduleStep = useCallback(
     (task: Task, stepId: string, startISO: string, dueISO: string) => {
@@ -399,8 +446,8 @@ export default function App() {
     { key: 'overdue', label: '지연' },
   ]
 
-  // 보기별 표시 대상 (숨긴 팀 제외)
-  const boardTasks = tasks.filter((t) => !hidden.has(t.team)) // 보드: 모든 상태
+  // 보기별 표시 대상 (보기 권한 + 숨긴 팀 제외)
+  const boardTasks = visibleTasks.filter((t) => !hidden.has(t.team)) // 보드: 모든 상태
   const listTasks = filteredTasks.filter((t) => !hidden.has(t.team)) // 목록: 상태 필터 반영
 
   // 실데이터 모드(Supabase 연결)에서는 로그인 필수. 데모 모드는 로그인 없이 사용.
@@ -442,7 +489,7 @@ export default function App() {
           </button>
           <div className="header-brand">
             <img src="/logo-wh.svg" alt="NINEWARE" className="brand-logo" />
-            <span className="brand-sub">업무진행 통합 대시보드</span>
+            <span className="brand-sub">업무진행대시보드 - Task Progress Tracker(TPT)</span>
           </div>
           <div className="spacer" />
           {/* 보기 전환 세그먼트 (타임라인/보드/목록) — 중앙寄り */}
@@ -495,7 +542,7 @@ export default function App() {
               {saving ? '저장 중…' : dirty ? '저장' : '저장됨'}
             </button>
           </div>
-          {canManageMembers(myRole) && (
+          {canManageMembers(myEmail) && (
             <button
               className="sidebar-toggle"
               onClick={() => setShowMembers(true)}
@@ -541,7 +588,7 @@ export default function App() {
             <div className="error-banner">저장/불러오기 오류: {error}</div>
           )}
 
-          <StatusBar tasks={tasks} today={today} />
+          <StatusBar tasks={visibleTasks} today={today} />
 
           {loading ? (
             <div className="empty-state">불러오는 중…</div>
@@ -594,13 +641,12 @@ export default function App() {
               onReschedule={handleReschedule}
               onRescheduleStep={handleRescheduleStep}
               onTaskContextMenu={(task, x, y) => setMenu({ task, x, y })}
-              onStepContextMenu={(task, stepId, date, x, y) =>
-                setMenu({ task, x, y, stepId, msDate: date })
-              }
               onMoveMilestone={handleMoveMilestone}
               onToggleMilestone={handleToggleMilestone}
               onCreateNew={() => setEditing({ task: null })}
               onAddStep={handleAddStep}
+              onUpdateStep={handleUpdateStep}
+              onDeleteStep={handleDeleteStep}
             />
           )}
         </div>

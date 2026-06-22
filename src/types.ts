@@ -23,11 +23,19 @@ export interface Milestone {
   done?: boolean // 완료 여부 (날짜 지났는데 미완료면 경고 표시)
 }
 
+// 세부 태스크에 첨부하는 문서 링크 (여러 개 가능)
+export interface StepLink {
+  id: string
+  label?: string // 표시 이름 (없으면 URL 도메인/축약 표시)
+  url: string
+}
+
 // 서브 태스크(과정). 각자 일정을 가지며 간트에서 레인 막대로 표시.
 export interface TaskStep {
   id: string
   title: string // 서브 태스크명
-  url: string // 구글 워크스페이스 링크 (시트/슬라이드/문서 등)
+  url: string // (레거시) 단일 링크 — 하위호환용. 신규는 links 사용
+  links?: StepLink[] // 문서 링크 여러 개 (구글 시트/슬라이드/문서 등)
   done: boolean // 완료 여부
   progress?: number // 진행률 0~100. 미지정 시 done ? 100 : 0 으로 폴백
   color?: string // 서브 태스크 고유색. 미지정 시 간트에서 인덱스 기반 자동색
@@ -35,6 +43,13 @@ export interface TaskStep {
   start_date?: string // 'YYYY-MM-DD' (미지정 시 상위 태스크 일정 사용)
   due_date?: string // 'YYYY-MM-DD'
   milestones?: Milestone[] // 기간 내 중간 이정표(점)
+}
+
+// 세부 태스크의 링크 목록(정규화) — 신규 links 우선, 없으면 레거시 url 1개로 변환.
+export function stepLinks(s: TaskStep): StepLink[] {
+  if (s.links && s.links.length) return s.links
+  if (s.url && s.url.trim()) return [{ id: 'legacy', url: s.url.trim() }]
+  return []
 }
 
 // 서브 태스크 진행률(%) — progress 우선, 없으면 done 기준 폴백(하위호환).
@@ -70,6 +85,8 @@ export interface Task {
   notes: string | null // 메모 (선택)
   color?: string // 메인태스크 좌측 컬러 바 색 (미지정 시 상태색)
   steps: TaskStep[] // 세부 단계 목록
+  view_emails?: string[] // 이 태스크를 볼 수 있는 사용자 이메일 (기본 숨김 — 관리자/담당자 외)
+  edit_emails?: string[] // 이 태스크를 수정할 수 있는 사용자 이메일 (수정 권한은 보기 권한 포함)
   sort_order: number
   created_at?: string
   updated_at?: string

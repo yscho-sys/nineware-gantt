@@ -9,13 +9,15 @@ import {
   CalendarClock,
   Eye,
   EyeOff,
+  Pencil,
 } from 'lucide-react'
 import type { Task, TaskStep } from '../types'
-import { STATUS_META, stepProgress } from '../types'
+import { STATUS_META, stepProgress, stepLinks } from '../types'
 import { STEP_COLORS } from '../lib/palette'
 import { packLanes } from '../lib/lanes'
 import { usePermit } from '../lib/permit'
 import { ConfirmDialog } from './ConfirmDialog'
+import { StepPopover } from './StepPopover'
 
 // 드래그로 조정한 변경 — 확인 팝업에서 확정/취소
 type PendingChange =
@@ -76,11 +78,12 @@ interface Props {
   onReschedule: (task: Task, startISO: string, dueISO: string) => void
   onRescheduleStep: (task: Task, stepId: string, startISO: string, dueISO: string) => void
   onTaskContextMenu: (task: Task, x: number, y: number) => void
-  onStepContextMenu: (task: Task, stepId: string, date: string, x: number, y: number) => void
   onMoveMilestone: (task: Task, stepId: string, milestoneId: string, date: string) => void
   onToggleMilestone: (task: Task, stepId: string, milestoneId: string) => void
   onCreateNew: () => void
   onAddStep: (task: Task, title: string) => void
+  onUpdateStep: (task: Task, stepId: string, patch: Partial<TaskStep>) => void
+  onDeleteStep: (task: Task, stepId: string) => void
 }
 
 function previewDates(d: DragState): { start: string; due: string } {
@@ -117,11 +120,12 @@ export function GanttChart({
   onReschedule,
   onRescheduleStep,
   onTaskContextMenu,
-  onStepContextMenu,
   onMoveMilestone,
   onToggleMilestone,
   onCreateNew,
   onAddStep,
+  onUpdateStep,
+  onDeleteStep,
 }: Props) {
   const { canEdit } = usePermit() // 권한 없으면 드래그·생성 비활성
   const [pending, setPending] = useState<PendingChange | null>(null) // 드래그 조정 확인 대기
@@ -180,6 +184,31 @@ export function GanttChart({
       else next.add(id)
       return next
     })
+
+  // #3 기본 접힘 — 처음 등장하는 메인태스크(세부 보유)는 접은 채 시작.
+  //  이미 본(seen) 태스크는 다시 접지 않음 → 사용자가 펼친 상태 유지.
+  const seenTasksRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const fresh = tasks
+      .filter((t) => (t.steps?.length ?? 0) > 0 && !seenTasksRef.current.has(t.id))
+      .map((t) => t.id)
+    if (!fresh.length) return
+    fresh.forEach((id) => seenTasksRef.current.add(id))
+    setClosedTasks((prev) => {
+      const next = new Set(prev)
+      fresh.forEach((id) => next.add(id))
+      return next
+    })
+  }, [tasks])
+
+  // #5 세부 태스크 인라인 편집 팝업 (fixed — 차트 overflow에 안 잘림)
+  const [stepPop, setStepPop] = useState<{ taskId: string; stepId: string; x: number; y: number } | null>(null)
+  const openStepPop = (e: React.MouseEvent, task: Task, step: TaskStep) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setStepPop({ taskId: task.id, stepId: step.id, x: r.left, y: r.bottom + 6 })
+  }
 
   // 행 인라인 서브 태스크 추가
   const [addingFor, setAddingFor] = useState<string | null>(null)
@@ -781,19 +810,18 @@ export function GanttChart({
                                   style={{ left, width, '--line-color': lineColor } as React.CSSProperties}
                                   onPointerDown={(e) => startDrag(e, t, 'move', s)}
                                   onClick={(e) => e.stopPropagation()}
-                                  onContextMenu={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    // 우클릭한 가로 위치 → 막대 기간 내 날짜로 환산(마일스톤 추가용)
-                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                                    const offDays = Math.round((e.clientX - rect.left) / DAY_W)
-                                    let d = addDays(parseDate(eff.start), offDays)
-                                    if (d < parseDate(eff.start)) d = parseDate(eff.start)
-                                    if (d > parseDate(eff.due)) d = parseDate(eff.due)
-                                    onStepContextMenu(t, s.id, toISODate(d), e.clientX, e.clientY)
-                                  }}
-                                  title={`${s.title} · ${rangeLabel(eff.start, eff.due)} · ${pct}%`}
+                                  onContextMenu={(e) => openStepPop(e, t, s)}
+                                  title={`${s.title} · ${rangeLabel(eff.start, eff.due)} · ${pct}% · 우클릭/✎ 편집`}
                                 >
+                                  {/* 호버 시 나타나는 인라인 편집 버튼 (우클릭과 동일 팝업) */}
+                                  <button
+                                    className="lane-edit"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => openStepPop(e, t, s)}
+                                    title="세부 태스크 편집"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
                                   {/* 진행도 시각 띠 제거 — 진행률은 라벨의 "· N%" 숫자로 표시 */}
                                   {/* 마일스톤 점들 (점 + 위 제목 텍스트, 드래그로 날짜 이동) */}
                                   {(s.milestones ?? []).map((m) => {
@@ -876,19 +904,29 @@ export function GanttChart({
                                       <span className="lane-meta">
                                         {rangeLabel(eff.start, eff.due)} · {pct}%
                                       </span>
-                                      {s.url && (
-                                        <button
-                                          className="lane-link"
-                                          onPointerDown={(e) => e.stopPropagation()}
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            window.open(s.url, '_blank', 'noopener')
-                                          }}
-                                          title="링크 열기"
-                                        >
-                                          <ExternalLink size={12} />
-                                        </button>
-                                      )}
+                                      {(() => {
+                                        const links = stepLinks(s)
+                                        if (!links.length) return null
+                                        return (
+                                          <button
+                                            className="lane-link"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              const u = links[0].url
+                                              window.open(/^https?:\/\//.test(u) ? u : 'https://' + u, '_blank', 'noopener')
+                                            }}
+                                            title={
+                                              links.length > 1
+                                                ? `문서 링크 ${links.length}개 — 클릭: 첫 링크 / ✎로 전체`
+                                                : '링크 열기'
+                                            }
+                                          >
+                                            <ExternalLink size={12} />
+                                            {links.length > 1 && <span className="lane-link-badge">{links.length}</span>}
+                                          </button>
+                                        )
+                                      })()}
                                     </div>
                                   </div>
                                   <span
@@ -960,6 +998,26 @@ export function GanttChart({
         ))}
       </div>
     )}
+
+    {/* #5 세부 태스크 인라인 편집 팝업 */}
+    {(() => {
+      if (!stepPop) return null
+      const t = tasks.find((x) => x.id === stepPop.taskId)
+      const s = t?.steps?.find((x) => x.id === stepPop.stepId)
+      if (!t || !s) return null
+      return (
+        <StepPopover
+          task={t}
+          step={s}
+          x={stepPop.x}
+          y={stepPop.y}
+          canEdit={canEdit(t)}
+          onUpdate={(patch) => onUpdateStep(t, s.id, patch)}
+          onDelete={() => onDeleteStep(t, s.id)}
+          onClose={() => setStepPop(null)}
+        />
+      )
+    })()}
 
     {pending && (
       <ConfirmDialog

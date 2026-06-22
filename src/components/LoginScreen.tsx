@@ -8,7 +8,7 @@ export function LoginScreen() {
       <div className="login-card">
         <div className="login-brand">
           <img src="/logo-wh.svg" alt="NINEWARE" className="login-logo" />
-          <span className="login-sub">업무진행 통합 대시보드</span>
+          <span className="login-sub">업무진행대시보드 - Task Progress Tracker(TPT)</span>
         </div>
 
         <button className="login-google" onClick={() => void signIn()}>

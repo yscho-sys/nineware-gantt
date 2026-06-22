@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon-64.png', 'apple-touch-icon.png', 'icon.svg'],
       manifest: {
-        name: '나인웨어 업무 통합 대시보드',
-        short_name: '나인웨어 업무',
+        name: '업무진행대시보드 - Task Progress Tracker(TPT)',
+        short_name: '업무진행대시보드',
         description: '팀별 업무를 간트차트로 한눈에 관리하는 나인웨어 사내 대시보드',
         lang: 'ko',
         theme_color: '#0c0d11',

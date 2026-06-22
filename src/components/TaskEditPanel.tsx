@@ -11,9 +11,10 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import type { Task, TaskDraft, TaskStatus, TaskStep, ProcessTemplate, Member } from '../types'
-import { STATUS_ORDER, STATUS_META, progressFromSteps, stepProgress } from '../types'
+import { STATUS_ORDER, STATUS_META, progressFromSteps, stepProgress, stepLinks } from '../types'
 import { STEP_COLORS } from '../lib/palette'
 import { usePermit } from '../lib/permit'
+import { StepLinksEditor } from './StepLinksEditor'
 
 function newStepId(): string {
   return 'step-' + crypto.randomUUID()
@@ -69,6 +70,8 @@ export function TaskEditPanel({
   const [ownerEmail, setOwnerEmail] = useState('') // 담당 계정(편집권한 연결)
   const [notes, setNotes] = useState('')
   const [color, setColor] = useState<string>('') // 메인태스크 컬러 바 색
+  const [viewEmails, setViewEmails] = useState<string[]>([]) // 볼 수 있는 사용자(기본 비공개)
+  const [editEmails, setEditEmails] = useState<string[]>([]) // 수정할 수 있는 사용자
   const [steps, setSteps] = useState<TaskStep[]>([])
   const [saving, setSaving] = useState(false)
   const [mainColorOpen, setMainColorOpen] = useState(false) // 메인 색 팝업
@@ -122,6 +125,8 @@ export function TaskEditPanel({
     setOwnerEmail(task?.owner_email ?? '')
     setNotes(task?.notes ?? '')
     setColor(task?.color ?? '')
+    setViewEmails(task?.view_emails ?? [])
+    setEditEmails(task?.edit_emails ?? [])
     // 서브 태스크 날짜가 비어 있으면 상위 태스크 일정으로 채워, 화면 표시값 = 저장될 값 이 되도록 한다.
     const baseStart = task?.start_date ?? defaultStart
     const baseDue = task?.due_date ?? defaultDue
@@ -188,14 +193,25 @@ export function TaskEditPanel({
     if (!confirm(`'${name || '이 서브 태스크'}'를 삭제할까요?`)) return
     setSteps((prev) => prev.filter((s) => s.id !== id))
   }
-  function openStep(url: string) {
-    const u = url.trim()
-    if (u) window.open(u, '_blank', 'noopener')
-  }
 
   const permit = usePermit()
   // 편집 가능 여부: 신규는 생성 권한, 기존은 해당 태스크 편집 권한
   const editable = isNew ? permit.canCreate : task ? permit.canEdit(task) : true
+  // 권한(보기/수정 대상) 부여 가능 여부: 관리자 또는 담당자. 신규는 관리자만.
+  const canGrant = permit.isAdmin || (task ? permit.canGrant(task) : false)
+  const lc = (s: string) => s.trim().toLowerCase()
+  const toggleView = (email: string) =>
+    setViewEmails((prev) => (prev.includes(email) ? prev.filter((x) => x !== email) : [...prev, email]))
+  const toggleEdit = (email: string) =>
+    setEditEmails((prev) => (prev.includes(email) ? prev.filter((x) => x !== email) : [...prev, email]))
+  // 권한 칩에 표시할 사람: 멤버 명부 + 이미 지정된 이메일(명부에 없어도)
+  const grantPeople = Array.from(
+    new Set([
+      ...Object.keys(members),
+      ...viewEmails.map(lc),
+      ...editEmails.map(lc),
+    ]),
+  ).sort((a, b) => a.localeCompare(b))
 
   const canSave =
     editable && project.trim() && team.trim() && title.trim() && startDate && dueDate && !saving
@@ -232,6 +248,12 @@ export function TaskEditPanel({
         owner_email: ownerEmail.trim() || null,
         notes: notes.trim() || null,
         color: color || undefined,
+        view_emails: viewEmails,
+        // 신규 생성 시 작성자 본인을 수정 권한에 자동 포함 → 만든 태스크가 바로 안 보이는 일 방지
+        edit_emails:
+          isNew && permit.email
+            ? Array.from(new Set([...editEmails, permit.email.toLowerCase()]))
+            : editEmails,
         steps: steps
           .filter((s) => s.title.trim() || s.url.trim())
           .map((s) => ({ ...s, title: s.title.trim(), url: s.url.trim() })),
@@ -348,6 +370,55 @@ export function TaskEditPanel({
               )}
             </select>
           </div>
+
+          {/* #4 메인태스크별 보기/수정 권한 — 기본 비공개. 관리자/담당자만 지정 가능. */}
+          {canGrant && (
+            <div className="field grant-field">
+              <label>접근 권한 (기본 비공개 — 관리자·담당자만 기본 노출)</label>
+              <p className="grant-hint">
+                지정한 사람만 이 태스크를 볼 수 있고, ‘수정’에 체크하면 편집까지 가능합니다. (수정 권한은 보기 포함)
+              </p>
+              {grantPeople.length === 0 ? (
+                <div className="grant-empty">
+                  등록된 멤버가 없습니다. 상단 <b>멤버 · 권한 관리</b>에서 먼저 추가하세요.
+                </div>
+              ) : (
+                <div className="grant-table">
+                  {grantPeople.map((email) => {
+                    const m = members[email]
+                    const label = m?.name ? `${m.name} · ${email}` : email
+                    const canView = viewEmails.includes(email) || editEmails.includes(email)
+                    const canEd = editEmails.includes(email)
+                    return (
+                      <div className="grant-row" key={email}>
+                        <span className="grant-person" title={email}>
+                          {label}
+                        </span>
+                        <button
+                          type="button"
+                          className={'grant-chip' + (canView ? ' on' : '')}
+                          onClick={() => editable && toggleView(email)}
+                          disabled={!editable || canEd}
+                          title={canEd ? '수정 권한에 보기 포함됨' : '보기 권한'}
+                        >
+                          보기
+                        </button>
+                        <button
+                          type="button"
+                          className={'grant-chip edit' + (canEd ? ' on' : '')}
+                          onClick={() => editable && toggleEdit(email)}
+                          disabled={!editable}
+                          title="수정 권한 (보기 포함)"
+                        >
+                          수정
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="field">
             <label>태스크 색상</label>
@@ -591,22 +662,12 @@ export function TaskEditPanel({
                   {/* 본문 — 펼침 시만 */}
                   {isOpen && (
                     <div className="step-card-body">
-                      <div className="step-url-row">
-                        <input
-                          className="step-url-input"
-                          value={s.url}
-                          onChange={(e) => updateStep(s.id, { url: e.target.value })}
-                          placeholder="구글 워크스페이스 링크 (시트/슬라이드/문서)"
+                      <div className="step-links-block">
+                        <span className="step-links-label">문서 링크 (여러 개 가능)</span>
+                        <StepLinksEditor
+                          links={stepLinks(s)}
+                          onChange={(next) => updateStep(s.id, { links: next, url: '' })}
                         />
-                        <button
-                          className="icon-btn"
-                          type="button"
-                          disabled={!s.url.trim()}
-                          onClick={() => openStep(s.url)}
-                          title="링크 열기"
-                        >
-                          <ExternalLink size={15} />
-                        </button>
                       </div>
                       <div className="step-progress-row">
                         <span className="step-weight-label">진행률 {stepProgress(s)}%</span>
