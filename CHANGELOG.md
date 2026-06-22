@@ -23,3 +23,5 @@
 
 ### 🚀 배포
 - Firebase Hosting site `nw-task`: https://nw-task.web.app
+- **추가 주소 `nw-tpt`**: https://nw-tpt.web.app — TPT 이름에 맞춰 별칭 주소 추가. 같은 Firebase 프로젝트(`nineware-ai-app`)에 사이트 `nw-tpt` 신규 생성, `firebase.json`을 사이트 2개(`nw-task`+`nw-tpt`) 배열로 변경해 **동일 `dist`를 양쪽 동시 배포**. `npm run deploy` 스크립트도 두 사이트 동시 배포로 수정. 두 주소 모두 같은 앱·같은 데이터(Supabase).
+  - Supabase Auth → URL Configuration → Redirect URLs 에 `https://nw-tpt.web.app/**` 추가 완료(없으면 새 주소 구글 로그인 차단). `redirectTo: window.location.origin` 사용이라 접속 주소로 되돌아옴.
