@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  Check,
 } from 'lucide-react'
 import type { Task, TaskStep } from '../types'
 import { STATUS_META, stepProgress, stepLinks } from '../types'
@@ -41,6 +42,19 @@ type ZoomLevel = 'day' | 'week' | 'month'
 const ZOOM_DAY_W: Record<ZoomLevel, number> = { day: 34, week: 14, month: 6 }
 const ZOOM_ORDER: ZoomLevel[] = ['day', 'week', 'month'] // 일(기본) → 주 → 월
 const ZOOM_LABEL: Record<ZoomLevel, string> = { day: '일', week: '주', month: '월' }
+
+// 마일스톤 라벨 대략 폭(px) 추정 — 가까운 마일스톤끼리 라벨 겹침 판정용
+// 실측 대신 글자수 기반 근사(font-size 10px·bold 기준): 한글/CJK ~10px, 그 외 ~6px.
+function estimateMsLabelWidth(title: string, overdue: boolean): number {
+  let w = 12 // 완료 체크박스(9px) + 간격(3px)
+  if (overdue) w += 13 // '⚠ ' 프리픽스 폭
+  for (const ch of title) {
+    w += /[ᄀ-ᇿ⺀-鿿가-힯＀-￯]/.test(ch) ? 10 : 6
+  }
+  return w + 4 // 좌우 여유
+}
+// 라벨 한 단 올릴 때 세로 간격(px) — 라벨 높이(10px) + 여유
+const MS_LABEL_STEP = 13
 
 // 서브 태스크 고유색 — color 지정 시 그 값, 없으면 인덱스 기반 자동색
 function stepColor(s: TaskStep, index: number): string {
@@ -774,8 +788,53 @@ export function GanttChart({
 
                     {/* 서브 태스크 레인 행들 — 항상 펼쳐진 한 줄 막대 */}
                     {!taskClosed &&
-                      lanes.map((lane, laneIdx) => (
-                        <div className="gantt-row lane-row" key={t.id + '-lane-' + laneIdx}>
+                      lanes.map((lane, laneIdx) => {
+                        // ── 이 레인 각 스텝의 마일스톤 라벨 단(row) 배정 + 레인 최대 단 수 ──
+                        // 가까우면 왼쪽(앞) 라벨은 그대로, 오른쪽(뒤) 라벨을 한 단씩 위로.
+                        const stepMsRows: Record<string, Record<string, number>> = {}
+                        let laneMaxRow = 0
+                        for (const { step: s } of lane) {
+                          const isD = drag?.id === t.id && drag.stepId === s.id
+                          const ef = isD ? previewDates(drag) : { start: subStart(s), due: subDue(s) }
+                          const rowOf: Record<string, number> = {}
+                          const metas = (s.milestones ?? [])
+                            .filter((m) => m.title)
+                            .map((m) => {
+                              const isMsD = msDrag?.msId === m.id && msDrag.stepId === s.id
+                              let effDate = m.date
+                              if (isMsD && msDrag) {
+                                let nd = addDays(parseDate(m.date), msDrag.deltaDays)
+                                if (nd < parseDate(ef.start)) nd = parseDate(ef.start)
+                                if (nd > parseDate(ef.due)) nd = parseDate(ef.due)
+                                effDate = toISODate(nd)
+                              }
+                              const centerX = (daysBetween(rangeStart, parseDate(effDate)) + 0.5) * DAY_W
+                              const overdue = !m.done && daysBetween(today, parseDate(effDate)) < 0
+                              const half = estimateMsLabelWidth(m.title!, overdue) / 2
+                              return { id: m.id, centerX, half }
+                            })
+                          metas.sort((a, b) => a.centerX - b.centerX)
+                          const rowRight: number[] = [] // 각 단에서 마지막 라벨 오른쪽 끝 x
+                          const GAP = 4
+                          for (const it of metas) {
+                            const leftE = it.centerX - it.half
+                            let r = 0
+                            while (r < rowRight.length && rowRight[r] + GAP > leftE) r++
+                            rowRight[r] = it.centerX + it.half
+                            rowOf[it.id] = r
+                            if (r > laneMaxRow) laneMaxRow = r
+                          }
+                          stepMsRows[s.id] = rowOf
+                        }
+                        // 들어올린 라벨이 위 레인 막대와 겹치지 않도록, 단 수만큼 행을 위로 키운다.
+                        // (막대는 bottom 고정 → 늘어난 높이는 전부 막대 위 여백이 됨)
+                        const laneRowH = 48 + laneMaxRow * MS_LABEL_STEP
+                        return (
+                        <div
+                          className="gantt-row lane-row"
+                          key={t.id + '-lane-' + laneIdx}
+                          style={{ height: laneRowH }}
+                        >
                           <div className="gantt-label sub-label">
                             <span className="nest-guide" style={{ background: teamCol }} />
                             {laneIdx === 0 && (
@@ -803,6 +862,8 @@ export function GanttChart({
                               // 지정한 고유색을 항상 사용(완료는 색 대신 반투명+체크로 구분)
                               const lineColor = stepColor(s, index)
                               const pct = stepProgress(s)
+                              // 마일스톤 라벨 단(row) — 위 레인 단위에서 미리 배정(겹침 회피)
+                              const msRowOf = stepMsRows[s.id] ?? {}
                               return (
                                 <div
                                   className={'lane-bar' + (isDragged ? ' dragged' : '') + (s.done ? ' done' : '')}
@@ -841,7 +902,10 @@ export function GanttChart({
                                     const leftPct = Math.min(100, Math.max(0, ((off + 0.5) / span) * 100))
                                     // 기한 지났는데 미완료면 경고(강한 레드)
                                     const overdue = !m.done && daysBetween(today, parseDate(effDate)) < 0
-                                    const msColor = m.done ? '#22b455' : overdue ? '#ff2d2d' : lineColor
+                                    // 완료 여부와 무관하게 세모는 원래 색 유지(완료는 옆 체크박스로 표시)
+                                    const msColor = overdue ? '#ff2d2d' : lineColor
+                                    // 겹침 회피로 배정된 단(0=기본, 1↑=위로 들어올림)
+                                    const msRow = msRowOf[m.id] ?? 0
                                     return (
                                       <span
                                         key={m.id}
@@ -852,7 +916,7 @@ export function GanttChart({
                                           (m.done ? ' done' : '')
                                         }
                                         style={{ left: `${leftPct}%` }}
-                                        title={`${t.team} › ${t.title} › ${s.title || '서브태스크'} › ${m.title}\n${shortLabel(parseDate(effDate))}${m.done ? ' · 완료' : overdue ? ' · ⚠ 기한 초과(미완료)' : ''} · 클릭: 완료 토글`}
+                                        title={`${t.team} › ${t.title} › ${s.title || '서브태스크'} › ${m.title}\n${shortLabel(parseDate(effDate))}${m.done ? ' · 완료' : overdue ? ' · ⚠ 기한 초과(미완료)' : ''} · 드래그: 날짜 이동 · 체크박스: 완료`}
                                         onPointerDown={(e) => {
                                           e.stopPropagation()
                                           setMsDrag({
@@ -873,9 +937,29 @@ export function GanttChart({
                                         }}
                                       >
                                         {m.title && (
-                                          <span className="lane-ms-label" style={overdue ? { color: '#ff2d2d' } : undefined}>
-                                            {overdue && '⚠ '}
-                                            {m.title}
+                                          <span
+                                            className="lane-ms-label"
+                                            style={{
+                                              bottom: 9 + msRow * MS_LABEL_STEP,
+                                              ...(overdue ? { color: '#ff2d2d' } : {}),
+                                            }}
+                                          >
+                                            {/* 완료 토글 — 텍스트 앞 작은 체크박스(직관적) */}
+                                            <button
+                                              className={'lane-ms-check' + (m.done ? ' on' : '')}
+                                              onPointerDown={(e) => e.stopPropagation()}
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                onToggleMilestone(t, s.id, m.id)
+                                              }}
+                                              title={m.done ? '완료됨 — 클릭하면 미완료로' : '클릭하면 완료로 표시'}
+                                            >
+                                              {m.done && <Check size={7} strokeWidth={4} />}
+                                            </button>
+                                            <span className={'lane-ms-title' + (m.done ? ' done' : '')}>
+                                              {overdue && '⚠ '}
+                                              {m.title}
+                                            </span>
                                           </span>
                                         )}
                                         <span
@@ -938,7 +1022,8 @@ export function GanttChart({
                             })}
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                   </div>
                 )
               })}
