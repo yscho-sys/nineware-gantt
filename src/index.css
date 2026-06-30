@@ -429,6 +429,28 @@ button {
   color: var(--text);
   max-width: 220px;
 }
+.user-chip-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 184px;
+  margin: -2px 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: default;
+}
+.user-chip-face.clickable {
+  cursor: pointer;
+}
+.user-chip-face.clickable:hover {
+  background: var(--surface-2);
+}
 .user-chip img {
   border-radius: 50%;
   flex: 0 0 auto;
@@ -650,7 +672,8 @@ button {
   opacity: 0.35;
   cursor: default;
 }
-.save-btn {
+/* 자동저장 상태 표시(버튼 아님 — 변경 시 자동 저장) */
+.autosave-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -658,26 +681,23 @@ button {
   padding: 0 12px;
   border-radius: 8px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
-  cursor: pointer;
+  user-select: none;
 }
-.save-btn.dirty {
-  background: var(--accent);
+.autosave-status.saving {
+  color: var(--accent);
   border-color: var(--accent);
-  color: #fff;
 }
-.save-btn.dirty::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fff;
+.autosave-spin {
+  animation: autosave-spin 0.9s linear infinite;
 }
-.save-btn:disabled:not(.dirty) {
-  cursor: default;
+@keyframes autosave-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 미저장 복구 배너 */

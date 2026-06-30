@@ -82,7 +82,7 @@ export function VersionPanel({ demoMode, onRestore, onClose }: Props) {
   }, [demoMode])
 
   const restore = (v: VersionItem) => {
-    if (!confirm(`이 버전(${v.label})으로 되돌릴까요?\n현재 작업본이 이 시점 상태로 교체됩니다. (저장해야 DB 반영)`))
+    if (!confirm(`이 버전(${v.label})으로 되돌릴까요?\n현재 내용이 이 시점 상태로 교체되어 자동 저장·반영됩니다.`))
       return
     onRestore(v.snapshot)
     onClose()
@@ -100,8 +100,8 @@ export function VersionPanel({ demoMode, onRestore, onClose }: Props) {
         </div>
         <div className="drawer-body">
           <p className="member-hint">
-            [저장]을 누른 시점마다 자동으로 기록됩니다. 되돌리면 작업본이 그 시점으로 바뀌고,
-            <b> 저장</b>을 눌러야 실제 반영됩니다. (최근 30개 보관)
+            편집 중 일정 간격(최대 3분)마다 자동으로 기록됩니다. 되돌리면 그 시점 상태로
+            바뀌어 곧바로 자동 저장·반영됩니다. (최근 30개 보관)
           </p>
           {loading ? (
             <div className="side-empty">불러오는 중…</div>

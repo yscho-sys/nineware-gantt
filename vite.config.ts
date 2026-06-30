@@ -35,7 +35,9 @@ export default defineConfig({
         clientsClaim: true,
         cleanupOutdatedCaches: true,
       },
-      devOptions: { enabled: true },
+      // 개발(vite dev) 중에는 서비스워커를 끈다 — 켜두면 옛 코드가 캐시돼 수정이 즉시 반영 안 되는 혼란 발생.
+      // 프로덕션 빌드의 PWA(설치·자동갱신)는 영향 없음.
+      devOptions: { enabled: false },
     }),
   ],
 })

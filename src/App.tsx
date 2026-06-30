@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { PanelLeftClose, PanelLeftOpen, LogOut, Users, Save, Undo2, Redo2, History } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, Undo2, Redo2, History } from 'lucide-react'
 import { useAuth } from './lib/auth'
 import { LoginScreen } from './components/LoginScreen'
 import { MemberManager } from './components/MemberManager'
@@ -53,21 +53,15 @@ export default function App() {
     loading,
     error,
     demoMode,
-    dirty,
-    saving,
     canUndo,
     canRedo,
-    recoverable,
     addTask,
     editTask,
     removeTask,
     renameTeamInTasks,
     replaceTasks,
-    save,
     undo,
     redo,
-    recover,
-    discardBackup,
   } = useTasks()
 
   // 내 역할/권한. 데모 모드(비로그인 로컬)는 전체 권한(admin)으로 취급.
@@ -90,12 +84,7 @@ export default function App() {
     [myEmail, amAdmin, myRole, configured, members],
   )
 
-  const doSave = useCallback(() => {
-    if (!dirty || saving) return
-    void save().catch(() => {}) // 오류는 error 배너로 노출됨
-  }, [dirty, saving, save])
-
-  // 단축키: Ctrl+S 저장 · Ctrl+Z 실행취소 · Ctrl+Shift+Z/Ctrl+Y 다시실행
+  // 단축키: Ctrl+Z 실행취소 · Ctrl+Shift+Z/Ctrl+Y 다시실행 (저장은 자동)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
@@ -104,10 +93,7 @@ export default function App() {
       const el = e.target as HTMLElement | null
       const editableField =
         !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
-      if (k === 's') {
-        e.preventDefault()
-        doSave()
-      } else if (!editableField && k === 'z' && !e.shiftKey) {
+      if (!editableField && k === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
       } else if (!editableField && ((k === 'z' && e.shiftKey) || k === 'y')) {
@@ -117,18 +103,8 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [doSave, undo, redo])
+  }, [undo, redo])
 
-  // 미저장 변경이 있으면 새로고침/창닫기 시 브라우저 경고
-  useEffect(() => {
-    if (!dirty) return
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-      e.returnValue = ''
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [dirty])
   const onRename = useCallback(
     (oldName: string, newName: string) => void renameTeamInTasks(oldName, newName),
     [renameTeamInTasks],
@@ -532,37 +508,25 @@ export default function App() {
             <button className="tool-btn" onClick={() => setShowVersions(true)} title="버전 기록 · 복원">
               <History size={16} />
             </button>
-            <button
-              className={'save-btn' + (dirty ? ' dirty' : '')}
-              onClick={doSave}
-              disabled={!dirty || saving}
-              title="저장 (Ctrl+S)"
-            >
-              <Save size={15} />
-              {saving ? '저장 중…' : dirty ? '저장' : '저장됨'}
-            </button>
           </div>
-          {canManageMembers(myEmail) && (
-            <button
-              className="sidebar-toggle"
-              onClick={() => setShowMembers(true)}
-              title="멤버 · 권한 관리"
-              aria-label="멤버 관리"
-            >
-              <Users size={18} />
-            </button>
-          )}
           {user && (
             <span className="user-chip" title={user.email}>
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="" width={24} height={24} referrerPolicy="no-referrer" />
-              ) : (
-                <span className="user-avatar-fallback">
-                  {(user.displayName ?? user.email).charAt(0).toUpperCase()}
-                </span>
-              )}
-              <span className="user-name">{user.displayName ?? user.email}</span>
-              <span className={'role-badge ' + myRole}>{ROLE_LABELS[myRole]}</span>
+              <button
+                type="button"
+                className={'user-chip-face' + (canManageMembers(myEmail) ? ' clickable' : '')}
+                onClick={canManageMembers(myEmail) ? () => setShowMembers(true) : undefined}
+                title={canManageMembers(myEmail) ? '멤버 · 권한 관리' : user.email}
+              >
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="" width={24} height={24} referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="user-avatar-fallback">
+                    {(user.displayName ?? user.email).charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="user-name">{user.displayName ?? user.email}</span>
+                <span className={'role-badge ' + myRole}>{ROLE_LABELS[myRole]}</span>
+              </button>
               <button className="user-logout" onClick={() => void logout()} title="로그아웃">
                 <LogOut size={14} />
               </button>
@@ -571,19 +535,6 @@ export default function App() {
         </header>
 
         <div className="main-body">
-          {recoverable && (
-            <div className="recover-banner">
-              <span>저장하지 않고 종료된 이전 변경이 있습니다. 복구할까요?</span>
-              <div className="recover-actions">
-                <button className="btn-primary" onClick={recover}>
-                  복구
-                </button>
-                <button className="btn-ghost" onClick={discardBackup}>
-                  무시
-                </button>
-              </div>
-            </div>
-          )}
           {error && (
             <div className="error-banner">저장/불러오기 오류: {error}</div>
           )}
