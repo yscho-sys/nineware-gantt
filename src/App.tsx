@@ -115,6 +115,19 @@ export default function App() {
   const { links, addLink, updateLink, removeLink, reorderLinks } = useLinks()
 
   const [editing, setEditing] = useState<Editing | null>(null)
+
+  // URL ?task=<id> 딥링크 — 할 일 DB 대시보드의 TPT 연결에서 넘어온 링크. tasks 로드 후 해당 태스크 편집 패널 열기(권한 확인).
+  useEffect(() => {
+    if (loading || editing) return
+    const id = new URLSearchParams(window.location.search).get('task')
+    if (!id) return
+    const t = tasks.find((x) => x.id === id)
+    if (!t) return
+    if (configured && !canViewTask(myEmail, t)) return
+    setEditing({ task: t })
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [loading, tasks, editing, myEmail, configured])
+
   const [menu, setMenu] = useState<{
     task: Task
     x: number
